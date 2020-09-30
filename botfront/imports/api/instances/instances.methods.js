@@ -303,6 +303,7 @@ if (Meteor.isServer) {
                     timeout: 30 * 60 * 1000,
                     responseType: 'arraybuffer',
                 });
+                const { augmentationFactor } = CorePolicies.findOne({ projectId }, { fields: { augmentationFactor: 1 } });
                 addLoggingInterceptors(trainingClient, appMethodLogger);
                 const trainingResponse = await trainingClient.post(
                     '/model/train',
