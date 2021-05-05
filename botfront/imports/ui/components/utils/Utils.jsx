@@ -1,123 +1,19 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
-import {
-    Icon, Loader, Menu, Label, Popup,
-} from 'semantic-ui-react';
-import moment from 'moment';
-import { isTraining } from '../../../api/nlu_model/nlu_model.utils';
-import TrainButton from './TrainButton';
-import { ProjectContext } from '../../layouts/context';
+import { Loader, Popup } from 'semantic-ui-react';
 
 
 export function Loading({ loading, children }) {
     return !loading ? children : <Loader active inline='centered' />;
 }
 
-Loading.propTypes = {
-    loading: PropTypes.bool.isRequired,
-};
 
-
-export function PageMenu(props) {
-    const {
-        title, icon, children, className, headerDataCy, withTraining,
-    } = props;
-    const {
-        project,
-        project: { _id: projectId, training: { endTime, status } = {} } = {},
-        instance,
-    } = useContext(ProjectContext);
+export function tooltipWrapper(trigger, tooltip) {
     return (
-        <Menu borderless className={`top-menu ${className}`}>
-            <Menu.Item>
-                <Menu.Header as='h3'>
-                    {icon && <Icon name={icon} {...(headerDataCy ? { 'data-cy': headerDataCy } : {})} />}
-                    {` ${title || ''}`}
-                </Menu.Header>
-            </Menu.Item>
-            {children}
-            {withTraining && (
-                <>
-                    <Menu.Item position='right'>
-                        {!isTraining(project) && status === 'success' && (
-                            <Popup
-                                trigger={(
-                                    <Icon
-                                        size='small'
-                                        name='check'
-                                        fitted
-                                        circular
-                                        style={{ color: '#2c662d' }}
-                                    />
-                                )}
-                                content={(
-                                    <Label
-                                        basic
-                                        content={(
-                                            <div>
-                                                {`Trained ${moment(endTime).fromNow()}`}
-                                            </div>
-                                        )}
-                                        style={{
-                                            borderColor: '#2c662d',
-                                            color: '#2c662d',
-                                        }}
-                                    />
-                                )}
-                            />
-                        )}
-                        {!isTraining(project) && status === 'failure' && (
-                            <Popup
-                                trigger={(
-                                    <Icon
-                                        size='small'
-                                        name='warning'
-                                        color='red'
-                                        fitted
-                                        circular
-                                    />
-                                )}
-                                content={(
-                                    <Label
-                                        basic
-                                        color='red'
-                                        content={(
-                                            <div>
-                                                {`Training failed ${moment(
-                                                    endTime,
-                                                ).fromNow()}`}
-                                            </div>
-                                        )}
-                                    />
-                                )}
-                            />
-                        )}
-                    </Menu.Item>
-                    <Menu.Item position='right'>
-                        <TrainButton
-                            project={project}
-                            instance={instance}
-                            projectId={projectId}
-                        />
-                    </Menu.Item>
-                </>
-            )}
-        </Menu>
+        <Popup size='mini' inverted content={tooltip} trigger={trigger} />
     );
 }
 
-PageMenu.defaultProps = {
-    children: null,
-    className: '',
-    headerDataCy: null,
-    withTraining: false,
-};
-
-PageMenu.propTypes = {
-    title: PropTypes.string.isRequired,
-    icon: PropTypes.string.isRequired,
-    children: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
-    className: PropTypes.string,
-    headerDataCy: PropTypes.string,
-    withTraining: PropTypes.bool,
+Loading.propTypes = {
+    loading: PropTypes.bool.isRequired,
 };

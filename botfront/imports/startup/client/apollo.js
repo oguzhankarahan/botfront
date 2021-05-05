@@ -1,18 +1,19 @@
 import { Accounts } from 'meteor/accounts-base';
 import { ApolloClient } from 'apollo-client';
 import { InMemoryCache, IntrospectionFragmentMatcher } from 'apollo-cache-inmemory';
-import { HttpLink } from 'apollo-link-http';
-
+import { createUploadLink } from 'apollo-upload-client';
 import { onError } from 'apollo-link-error';
 import { ApolloLink, Observable, split } from 'apollo-link';
 import { DDPSubscriptionLink, isSubscription } from 'apollo-link-ddp';
 
 import botResponseFragmentTypes from '../../api/graphql/botResponses/schemas/botResponseFragmentTypes.json';
+import formFragmentTypes from '../../api/graphql/forms/formFragmentTypes.json';
 
 const introspectionQueryResultData = {
     __schema: {
         types: [
             ...botResponseFragmentTypes,
+            ...formFragmentTypes,
         ],
     },
 };
@@ -58,7 +59,8 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
     if (networkError) console.log(`[Network error]: ${networkError}`);
 });
 
-const httpLink = new HttpLink({
+
+const uploadLink = createUploadLink({
     uri: '/graphql',
     credentials: 'same-origin',
 });
@@ -69,13 +71,20 @@ const subscriptionLink = new DDPSubscriptionLink();
 const link = split(
     isSubscription,
     subscriptionLink,
-    httpLink,
+    uploadLink,
 );
 
+// this will activate the dev tools when we are testing the application
+// So cypress can acces __APOLLO_CLIENT__
+let devTools = {};
+if (window.Cypress) {
+    devTools = { connectToDevTools: true };
+}
 
 const client = new ApolloClient({
     link: ApolloLink.from([errorLink, requestLink, link]),
     cache: new InMemoryCache({ fragmentMatcher }),
+    ...devTools,
 });
 
 export default client;

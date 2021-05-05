@@ -1,15 +1,25 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
 /* eslint-disable jsx-a11y/label-has-for */
 import React from 'react';
-import { AutoForm, SubmitField, ErrorsField } from 'uniforms-semantic';
-import { Dropdown, Form, Message } from 'semantic-ui-react';
+import {
+    AutoForm,
+    SubmitField,
+    ErrorsField,
+    LongTextField,
+    AutoField,
+} from 'uniforms-semantic';
+import {
+    Dropdown, Form, Message, Icon, Segment,
+} from 'semantic-ui-react';
 import SimpleSchema2Bridge from 'uniforms-bridge-simple-schema-2';
 import { ProjectsSchema } from '../../../api/project/project.schema';
 import { ProjectContext } from '../../layouts/context';
 import InfoField from '../utils/InfoField';
 import { wrapMeteorCallback } from '../utils/Errors';
 import SelectField from '../form_fields/SelectField';
+import { can } from '../../../lib/scopes';
 import { languages } from '../../../lib/languages';
+import { Info } from '../common/Info';
 
 class ProjectInfo extends React.Component {
     constructor(props) {
@@ -53,11 +63,7 @@ class ProjectInfo extends React.Component {
     };
 
     createNLUModels = (languageArray, projectId) => {
-        const nluInsertArray = languageArray.map(language => Meteor.callWithPromise(
-            'nlu.insert',
-            projectId,
-            language,
-        ));
+        const nluInsertArray = languageArray.map(language => Meteor.callWithPromise('nlu.insert', projectId, language));
         Promise.all(nluInsertArray).then(() => {
             this.setState({ saving: false });
         });
@@ -66,18 +72,36 @@ class ProjectInfo extends React.Component {
     onSave = (project) => {
         const { value } = this.state;
         const { projectLanguages } = this.context;
-        const { name, _id, defaultLanguage } = project;
-        const notInprojectLanguages = value.filter(el => !projectLanguages.some(l => l.value === el));
+        const {
+            name,
+            _id,
+            defaultLanguage,
+           
+            nluThreshold,
+            deploymentEnvironments,
+            timezoneOffset,
+        } = project;
+        const notInprojectLanguages = value.filter(
+            el => !projectLanguages.some(l => l.value === el),
+        );
         this.setState({ saving: true });
+        if (deploymentEnvironments && deploymentEnvironments.length === 0) {
+            Meteor.call('stories.changeStatus', _id, 'unpublished', 'published');
+        }
         Meteor.call(
             'project.update',
-            { name, _id, defaultLanguage },
+            {
+                name,
+                _id,
+                defaultLanguage,
+              
+                nluThreshold,
+                deploymentEnvironments,
+                timezoneOffset,
+            },
             wrapMeteorCallback((err) => {
                 if (!err) {
-                    this.createNLUModels(
-                        notInprojectLanguages,
-                        _id,
-                    );
+                    this.createNLUModels(notInprojectLanguages, _id);
                 }
             }, 'Changes saved'),
         );
@@ -99,8 +123,15 @@ class ProjectInfo extends React.Component {
     static contextType = ProjectContext;
 
     render() {
-        const { projectLanguages } = this.context;
+        const {
+            projectLanguages,
+            project: { _id: projectId },
+        } = this.context;
         const { saving, value, model } = this.state;
+        const hasWritePermission = can('projects:w', projectId);
+        if (model.deploymentEnvironments) {
+            model.deploymentEnvironments = model.deploymentEnvironments.filter(env => env !== 'staging');
+        }
         const bridge = new SimpleSchema2Bridge(ProjectsSchema);
         return (
             <>
@@ -108,12 +139,18 @@ class ProjectInfo extends React.Component {
                     schema={bridge}
                     model={model}
                     onSubmit={updateProject => this.onSave(updateProject)}
-                    disabled={saving}
+                    disabled={saving || !hasWritePermission}
                 >
                     <InfoField
                         name='name'
                         label='Name'
                         className='project-name'
+                        data-cy='project-name'
+                    />
+                    <InfoField
+                        name='namespace'
+                        label='Namespace'
+                        disabled
                     />
                     <Form.Field>
                         <label>Languages supported</label>
@@ -127,13 +164,11 @@ class ProjectInfo extends React.Component {
                             selection
                             onChange={this.onChange}
                             options={this.getOptions()}
-                            renderLabel={language => this.renderLabel(
-                                language,
-                            )}
+                            renderLabel={language => this.renderLabel(language)}
                             data-cy='language-selector'
+                            disabled={!hasWritePermission}
                         />
-                        {!!projectLanguages.length
-                                && this.renderDeleteprojectLanguages()}
+                        {!!projectLanguages.length && this.renderDeleteprojectLanguages()}
                     </Form.Field>
                     {!!projectLanguages.length && (
                         <SelectField
@@ -143,13 +178,45 @@ class ProjectInfo extends React.Component {
                             data-cy='default-langauge-selection'
                         />
                     )}
+                   
+                    <InfoField
+                        name='nluThreshold'
+                        label='NLU threshold'
+                        info='Botfront will display recommendations on incoming utterances based on that threshold'
+                        data-cy='change-nlu-threshold'
+                    />
+                    <br />
+                    {can('resources:r', projectId) && (
+                        <>
+                            <InfoField
+                                name='deploymentEnvironments'
+                                label='Deployment environments'
+                                info='Botfront will enable additional environments for your workflow'
+                                data-cy='deployment-environments'
+                                disabled={!can('resources:w', projectId)}
+                            />
+                            <Message
+                                size='tiny'
+                                info
+                                content='If you remove all environments, all stories will be published'
+                            />
+                        </>
+                    )}
+                    <AutoField
+                        step='0.5'
+                        name='timezoneOffset'
+                        label='Timezone offset relative to UTC±00:00'
+                        data-cy='change-timezone-offset'
+                    />
                     <br />
                     <ErrorsField />
-                    <SubmitField
-                        className='primary save-project-info-button'
-                        value='Save Changes'
-                        data-cy='save-changes'
-                    />
+                    {hasWritePermission && (
+                        <SubmitField
+                            className='primary save-project-info-button'
+                            value='Save Changes'
+                            data-cy='save-changes'
+                        />
+                    )}
                 </AutoForm>
             </>
         );

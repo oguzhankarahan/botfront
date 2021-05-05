@@ -23,15 +23,15 @@ describe('Bot responses', function() {
         cy.dataCy('bot-response-input').click().find('textarea').type('A');
         addVariation('B');
         addVariation('C');
-        cy.dataCy('bot-response-input').contains('B').click();
-        cy.dataCy('bot-response-input').contains('B')
+        cy.dataCy('bot-response-input', 'B')
+            .find('textarea')
             .clear()
             .type('D');
-        cy.dataCy('bot-response-input').contains('D').should('exist');
+        cy.dataCy('bot-response-input', 'D').should('exist');
         cy.dataCy('icon-trash').eq(1).click();
-        cy.dataCy('bot-response-input').contains('A').should('exist');
-        cy.dataCy('bot-response-input').contains('C').should('exist');
-        cy.dataCy('bot-response-input').contains('D').should('not.exist');
+        cy.dataCy('bot-response-input', 'A').should('exist');
+        cy.dataCy('bot-response-input', 'C').should('exist');
+        cy.dataCy('bot-response-input', 'D').should('not.exist');
         
         cy.escapeModal();
         cy.dataCy('response-text').find('div').contains('A').should('exist');
@@ -67,7 +67,7 @@ describe('Bot responses', function() {
     it('should show the first variation in the visual editor', function() {
         cy.visit('/project/bf/dialogue');
         cy.createStoryGroup();
-        cy.createStoryInGroup();
+        cy.createFragmentInGroup();
 
         cy.dataCy('single-story-editor').trigger('mouseover');
         cy.dataCy('add-bot-line').click({ force: true });
@@ -76,7 +76,7 @@ describe('Bot responses', function() {
         cy.dataCy('bot-response-input').click().find('textarea').type('hi');
         cy.dataCy('single-story-editor').trigger('mouseover');
         cy.dataCy('edit-responses').click({ force: true });
-
+        cy.dataCy('bot-response-input').should('include.text', 'hi');
         cy.dataCy('add-variation').click();
         cy.dataCy('bot-response-input').should('have.length', 3);
         cy.dataCy('bot-response-input').last().click();

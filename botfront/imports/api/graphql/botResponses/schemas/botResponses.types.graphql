@@ -43,6 +43,7 @@ type Mutation {
         # can update the rest of the variations and other languages for this response
         newResponseType: String
         index: Int = -1
+        logging: Boolean
     ): BotResponse
 
     createResponses(projectId: String!, responses: String): updateResponse!
@@ -138,7 +139,7 @@ type ImagePayload implements BotResponsePayload {
 type CarouselPayload implements BotResponsePayload {
     key: String
     text: String
-    template_type: TemplateType!
+    template_type: TemplateType # we don't touch this one for now, as Rasa still tries to access it
     elements: [CarouselElement!]
     metadata: Any
 }

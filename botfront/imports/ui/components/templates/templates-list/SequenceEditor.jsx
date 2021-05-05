@@ -1,9 +1,10 @@
 /* eslint-disable no-underscore-dangle */
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Segment, Message } from 'semantic-ui-react';
 
 import { safeLoad } from 'js-yaml';
+import { v4 as uuidv4 } from 'uuid';
 
 import BotResponsesContainer from '../../stories/common/BotResponsesContainer';
 import CustomResponseEditor from '../common/CustomResponseEditor';
@@ -14,8 +15,10 @@ import { addContentType, defaultTemplate } from '../../../../lib/botResponse.uti
 
 const SequenceEditor = (props) => {
     const {
-        name, sequence, onChange, onDeleteVariation, onChangePayloadType,
+        name, sequence, onChange, onDeleteVariation, editable, onChangePayloadType,
     } = props;
+
+    const [editorKey, setEditorKey] = useState(uuidv4());
 
     const getContent = (variation) => {
         const content = safeLoad((variation || {}).content);
@@ -27,7 +30,7 @@ const SequenceEditor = (props) => {
         if (!content) return <></>;
         return (
             <Segment
-                className='variation-container'
+                className={`variation-container ${editable ? '' : 'read-only'}`}
                 attached
                 key={`variation-${index}-${content.text}`}
                 data-cy='variation-container'
@@ -36,46 +39,51 @@ const SequenceEditor = (props) => {
                     {content.__typename !== 'CustomPayload' && (
                         <BotResponsesContainer
                             deleteable
+                            name={name}
                             initialValue={content}
                             onChange={value => onChange(value, index)}
-                            isNew={false}
                             enableEditPopup={false}
                             tag={`${name}-${index}`}
                         />
                     )}
                     {content.__typename === 'CustomPayload' && (
                         <CustomResponseEditor
+                            key={editorKey}
                             content={content}
                             onChange={value => onChange(value, index)}
                         />
                     )}
                     <div className='variation-option-menu'>
-                        {/* <Icon name='star' color='yellow' float='right' /> */}
-                        <ButtonTypeToggle
-                            onToggleButtonType={() => {
-                                if (content.__typename === 'TextWithButtonsPayload') {
-                                    onChangePayloadType('QuickRepliesPayload');
-                                }
-                                if (content.__typename === 'QuickRepliesPayload') {
-                                    onChangePayloadType('TextWithButtonsPayload');
-                                }
-                            }}
-                            responseType={content.__typename}
-                        />
-                        <IconButton
-                            id={`delete-${name}-${index}`} // stop the response from saving if the input blur event is the delete button
-                            onClick={() => {
-                                if (sequence.length === 1) {
-                                    const blankTemplate = defaultTemplate(
-                                        content.__typename,
-                                    );
-                                    onChange({ payload: blankTemplate }, 0);
-                                    return;
-                                }
-                                onDeleteVariation(index);
-                            }}
-                            icon='trash'
-                        />
+                        {editable && (
+                        <>
+                            <ButtonTypeToggle
+                                onToggleButtonType={() => {
+                                    if (content.__typename === 'TextWithButtonsPayload') {
+                                        onChangePayloadType('QuickRepliesPayload');
+                                    }
+                                    if (content.__typename === 'QuickRepliesPayload') {
+                                        onChangePayloadType('TextWithButtonsPayload');
+                                    }
+                                }}
+                                responseType={content.__typename}
+                            />
+                            <IconButton
+                                id={`delete-${name}-${index}`} // stop the response from saving if the input blur event is the delete button
+                                onClick={() => {
+                                    if (sequence.length === 1) {
+                                        setEditorKey(uuidv4());
+                                        const blankTemplate = defaultTemplate(
+                                            content.__typename,
+                                        );
+                                        onChange({ payload: blankTemplate }, 0);
+                                        return;
+                                    }
+                                    onDeleteVariation(index);
+                                }}
+                                icon='trash'
+                            />
+                        </>
+                        )}
                     </div>
                 </>
             </Segment>
@@ -89,10 +97,9 @@ const SequenceEditor = (props) => {
                     style={{ margin: '10px' }}
                     content={(
                         <>
-                            By convention, everything under the{' '}
-                            <b className='monospace'>custom</b> key will be dispatched by Rasa{' '}
-                            <i>as is</i>, while content under other top-level keys may be
-                            formatted according to rules specific to the output channel.
+                            The <b className='monospace'>custom</b> key must be an <b className='monospace'>object</b> and will be dispatched by rasa as is.
+                            Content under other top-level keys may be formatted according to rules
+                            specific to the output channel.
                         </>
                     )}
                 />
@@ -107,7 +114,12 @@ SequenceEditor.propTypes = {
     onChange: PropTypes.func.isRequired,
     onDeleteVariation: PropTypes.func.isRequired,
     name: PropTypes.string.isRequired,
-    onChangePayloadType: PropTypes.string.isRequired,
+    onChangePayloadType: PropTypes.func.isRequired,
+    editable: PropTypes.bool,
+};
+
+SequenceEditor.defaultProps = {
+    editable: true,
 };
 
 export default SequenceEditor;

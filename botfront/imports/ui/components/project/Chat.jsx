@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Widget } from 'rasa-webchat/module';
+import Widget from 'rasa-webchat';
 
 class Chat extends React.Component {
     // WARNING
@@ -18,9 +18,11 @@ class Chat extends React.Component {
             language,
             path,
             initialPayLoad,
+            innerRef,
         } = this.props;
         return (
             <Widget
+                ref={innerRef}
                 interval={0}
                 initPayload={initialPayLoad}
                 socketUrl={socketUrl}
@@ -30,6 +32,18 @@ class Chat extends React.Component {
                 customData={{ language }}
                 embedded
                 customMessageDelay={() => 0}
+                customComponent={(message) => {
+                    const {
+                        dispatch, id, isLast, store, ...custom
+                    } = message;
+                    return (
+                        <div className='rw-response'>
+                            You have to define a custom component prop on the rasa webchat to display this message.
+                            {JSON.stringify(custom)}
+                        </div>
+                    );
+                }}
+                withRules
             />
         );
     }
@@ -40,6 +54,7 @@ Chat.propTypes = {
     path: PropTypes.string.isRequired,
     language: PropTypes.string,
     initialPayLoad: PropTypes.string,
+    innerRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
 };
 
 Chat.defaultProps = {
@@ -47,4 +62,4 @@ Chat.defaultProps = {
     initialPayLoad: '',
 };
 
-export default Chat;
+export default React.forwardRef((props, ref) => <Chat innerRef={ref} {...props} />);

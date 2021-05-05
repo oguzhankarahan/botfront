@@ -1,13 +1,28 @@
-import { safeDump } from 'js-yaml/lib/js-yaml';
+import { safeDump, safeLoad } from 'js-yaml/lib/js-yaml';
 import shortid from 'shortid';
-import { safeLoad } from 'js-yaml';
 import BotResponses from '../botResponses.model';
-import { clearTypenameField } from '../../../../lib/client.safe.utils';
+import Forms from '../../forms/forms.model';
+import { clearTypenameField, cleanPayload } from '../../../../lib/client.safe.utils';
 import { Stories } from '../../../story/stories.collection';
 import { addTemplateLanguage, modifyResponseType } from '../../../../lib/botResponse.utils';
-import { parsePayload } from '../../../../lib/storyMd.utils';
+import {
+    getWebhooks, deleteImages, auditLogIfOnServer, getImageUrls,
+} from '../../../../lib/utils';
 import { replaceStoryLines } from '../../story/mongo/stories';
 
+const getEntities = (storyLine) => {
+    const entitiesString = storyLine.split('{')[1];
+    if (!entitiesString) return [];
+    const entities = entitiesString.slice(0, entitiesString.length - 1).split(',');
+    return entities.map(entity => entity.split(':')[0].replace(/"/g, ''));
+};
+
+const parsePayload = (payload) => {
+    if (payload[0] !== '/') throw new Error('a payload must start with a "/"');
+    const intent = payload.slice(1).split('{')[0];
+    const entities = getEntities(payload.slice(1));
+    return { intent, entities };
+};
 
 const indexResponseContent = (input) => {
     if (Array.isArray(input)) return input.reduce((acc, curr) => [...acc, ...indexResponseContent(curr)], []);
@@ -53,9 +68,9 @@ const mergeAndIndexBotResponse = async ({
     }
     const valueIndex = botResponse.values.findIndex(({ lang }) => lang === language);
     if (valueIndex > -1) { // add to existing language
-        botResponse.values[valueIndex].sequence[index] = { content: safeDump(clearTypenameField(newPayload)) };
+        botResponse.values[valueIndex].sequence[index] = { content: safeDump(cleanPayload(newPayload)) };
     } else { // add a new language
-        botResponse.values = [...botResponse.values, { lang: language, sequence: [{ content: safeDump(clearTypenameField(newPayload)) }] }];
+        botResponse.values = [...botResponse.values, { lang: language, sequence: [{ content: safeDump(cleanPayload(newPayload)) }] }];
     }
     return indexBotResponse(botResponse);
 };
@@ -129,7 +144,14 @@ export const getBotResponses = async projectId => BotResponses.find({
     projectId,
 }).lean();
 
-export const deleteResponse = async (projectId, key) => BotResponses.findOneAndDelete({ projectId, key });
+
+export const deleteResponse = async (projectId, key) => {
+    const response = await BotResponses.findOne({ projectId, key }).lean();
+    if (!response) return;
+    const { deleteImageWebhook: { url, method } } = getWebhooks();
+    if (url && method) deleteImages(getImageUrls(response), projectId, url, method);
+    return BotResponses.findOneAndDelete({ _id: response._id }).lean(); // eslint-disable-line consistent-return
+};
 
 export const getBotResponse = async (projectId, key) => BotResponses.findOne({
     projectId,
@@ -174,12 +196,12 @@ export const upsertResponse = async ({
         ? {
             $push: {
                 'values.$.sequence': {
-                    $each: [{ content: safeDump(clearTypenameField(newPayload)) }],
+                    $each: [{ content: safeDump(cleanPayload(newPayload)) }],
                 },
             },
             $set: { textIndex, ...(newKey ? { key: newKey } : {}) },
         }
-        : { $set: { [`values.$.sequence.${index}`]: { content: safeDump(clearTypenameField(newPayload)) }, textIndex, ...(newKey ? { key: newKey } : {}) } };
+        : { $set: { [`values.$.sequence.${index}`]: { content: safeDump(cleanPayload(newPayload)) }, textIndex, ...(newKey ? { key: newKey } : {}) } };
     const updatedResponse = await BotResponses.findOneAndUpdate(
         { projectId, key, 'values.lang': language },
         update,
@@ -189,7 +211,7 @@ export const upsertResponse = async ({
     || BotResponses.findOneAndUpdate(
         { projectId, key },
         {
-            $push: { values: { lang: language, sequence: [{ content: safeDump(clearTypenameField(newPayload)) }] } },
+            $push: { values: { lang: language, sequence: [{ content: safeDump(cleanPayload(newPayload)) }] } },
             $setOnInsert: {
                 _id: shortid.generate(),
                 projectId,
@@ -234,7 +256,9 @@ export const newGetBotResponses = async ({
     const { emptyAsDefault } = options;
     // template (optional): str || array
     // language (optional): str || array
-    let templateKey = {}; let languageKey = {}; let languageFilter = [];
+    let templateKey = {};
+    let languageKey = {};
+    let languageFilter = [];
     if (template) {
         const templateArray = typeof template === 'string' ? [template] : template;
         templateKey = { key: { $in: templateArray } };
@@ -242,9 +266,19 @@ export const newGetBotResponses = async ({
     if (language) {
         const languageArray = typeof language === 'string' ? [language] : language;
         languageKey = { 'values.lang': { $in: languageArray } };
-        languageFilter = [{
-            $addFields: { values: { $filter: { input: '$values', as: 'value', cond: { $in: ['$$value.lang', languageArray] } } } },
-        }];
+        languageFilter = [
+            {
+                $addFields: {
+                    values: {
+                        $filter: {
+                            input: '$values',
+                            as: 'value',
+                            cond: { $in: ['$$value.lang', languageArray] },
+                        },
+                    },
+                },
+            },
+        ];
     }
     const aggregationParameters = [
 
@@ -281,15 +315,35 @@ export const newGetBotResponses = async ({
     return templates;
 };
 
-
-export const deleteResponsesRemovedFromStories = (removedResponses, projectId) => {
-    const sharedResponses = Stories.find({ projectId, events: { $in: removedResponses } }, { fields: { events: true } }).fetch();
+export const deleteResponsesRemovedFromStories = async (removedResponses, projectId) => {
+    const sharedResponsesInStories = Stories.find({ projectId, events: { $in: removedResponses } }, { fields: { events: true } }).fetch();
+    const formsInProject = await Forms.find({ projectId }).lean();
+    const responsesInForms = formsInProject.reduce((acc, value) => [
+        ...acc,
+        ...value.slots.reduce((allSlots, slot) => [
+            ...allSlots,
+            `utter_ask_${slot.name}`,
+            `utter_valid_${slot.name}`,
+            `utter_invalid_${slot.name}`,
+        ], [])], []);
     if (removedResponses && removedResponses.length > 0) {
         const deleteResponses = removedResponses.filter((event) => {
-            if (!sharedResponses) return true;
-            return !sharedResponses.find(({ events }) => events.includes(event));
+            if (sharedResponsesInStories.find(({ events }) => events.includes(event))) return false;
+            if (responsesInForms.some(response => response === event)) return false;
+            return true;
         });
         deleteResponses.forEach(event => deleteResponse(projectId, event));
+        deleteResponses.forEach((response) => {
+            auditLogIfOnServer('Deleted response', {
+                resId: response._id,
+                user: Meteor.user(),
+                projectId,
+                type: 'deleted',
+                operation: 'response-deleted',
+                before: { response },
+                resType: 'response',
+            });
+        });
     }
 };
 

@@ -4,15 +4,8 @@ import { GraphQLScalarType } from 'graphql';
 import { newGetBotResponses } from '../mongo/botResponses';
 import { parseContentType } from '../../../../lib/botResponse.utils';
 import commonResolvers from '../../common/commonResolver';
+import { checkIfCan } from '../../../../lib/scopes';
 import Projects from '../../project/project.model';
-
-const interpolateSlots = (text, slots) => {
-    // fills in {slotname} in templates
-    const slotSubs = Object.entries(slots).map(s => [`{${s[0]}}`, s[1] || '']);
-    let subbedText = text;
-    slotSubs.forEach(function(s) { subbedText = subbedText.replace(s[0], s[1]); });
-    return subbedText;
-};
 
 const chooseTemplateSource = (responses, channel) => {
     // chooses between array of channel-specific responses, or channel-agnostic responses
@@ -24,7 +17,7 @@ const chooseTemplateSource = (responses, channel) => {
 };
 
 const resolveTemplate = async ({
-    template, projectId, language, slots, channel = null,
+    template, projectId, language, channel = null,
 }) => {
     const responses = await newGetBotResponses({
         projectId, template, language,
@@ -35,13 +28,13 @@ const resolveTemplate = async ({
     const { payload: rawPayload, metadata } = sample(source);
     const payload = safeLoad(rawPayload);
     if (payload.key) delete payload.key;
-    if (payload.text) payload.text = interpolateSlots(payload.text, slots || {});
     return { ...payload, metadata };
 };
 
 export default {
     Query: {
-        getResponse: async (_root, args) => {
+        getResponse: async (_root, args, context) => {
+            checkIfCan('responses:r', args.projectId, context.user._id);
             const {
                 template,
                 arguments: { language: specifiedLang, projectId } = {},
@@ -56,12 +49,13 @@ export default {
                 ? specifiedLang
                 : slots.fallback_language;
             return resolveTemplate({
-                template, projectId, language, slots, channel,
+                template, projectId, language, channel,
             });
         },
         getResponses: async (_root, {
             projectId, templates, language,
-        }) => {
+        }, context) => {
+            checkIfCan('responses:r', projectId, context.user._id);
             const responses = await newGetBotResponses({
                 projectId,
                 template: templates,
@@ -91,7 +85,6 @@ export default {
         image: ({ image }) => image,
     },
     CarouselPayload: {
-        template_type: ({ template_type: templateType }) => templateType,
         text: ({ text }) => text,
         elements: ({ elements }) => elements,
     },

@@ -8,6 +8,7 @@ import {
 } from '../mongo/examples.js';
 import { getIntentStatistics } from '../mongo/statistics';
 import { can, checkIfCan } from '../../../../lib/scopes';
+import { auditLog } from '../../../../../server/logger';
 
 const { PubSub, withFilter } = require('apollo-server-express');
 
@@ -63,13 +64,31 @@ export default {
         async updateExamples(_, args, context) {
             checkIfCan('nlu-data:w', args.projectId, context.user._id);
             const response = await updateExamples(args);
+            auditLog('updated examples', {
+                user: context.user,
+                type: 'updated',
+                projectId: args.projectId,
+                operation: 'nlu-data-updated',
+                resId: args.key,
+                after: { examples: response },
+                resType: 'examples',
+            });
             const { projectId, language } = args;
             publishIntentsOrEntitiesChanged(projectId, language);
             return response;
         },
-        async insertExamples(_, args, context) {
+        async insertExamples(_, { autoAssignCanonical, overwriteOnSameText, ...args }, context) {
             checkIfCan('nlu-data:w', args.projectId, context.user._id);
-            const response = await insertExamples(args);
+            const response = await insertExamples({ ...args, options: { autoAssignCanonical, overwriteOnSameText } });
+            auditLog('inserted examples', {
+                user: context.user,
+                type: 'inserted',
+                projectId: args.projectId,
+                operation: 'nlu-data-inserted',
+                resId: args.key,
+                after: { examples: response },
+                resType: 'examples',
+            });
             if ((response || []).length > 0) {
                 const { projectId, language } = args;
                 publishIntentsOrEntitiesChanged(projectId, language);
@@ -79,11 +98,30 @@ export default {
         async deleteExamples(_, args, context) {
             checkIfCan('nlu-data:w', args.projectId, context.user._id);
             const response = await deleteExamples(args);
+            auditLog('deleted examples', {
+                user: context.user,
+                type: 'deleted',
+                projectId: args.projectId,
+                operation: 'nlu-data-deleted',
+                resId: args.key,
+                after: { Deletedexamples: response },
+                resType: 'examples',
+            });
             return response;
         },
         async switchCanonical(_, args, context) {
             checkIfCan('nlu-data:w', args.projectId, context.user._id);
             const response = await switchCanonical(args);
+            auditLog('deleted examples', {
+                user: context.user,
+                type: 'deleted',
+                projectId: args.projectId,
+                operation: 'nlu-data-deleted',
+                resId: args.key,
+                before: { examples: args.example },
+                after: { examples: response },
+                resType: 'examples',
+            });
             const { projectId, language } = args;
             publishIntentsOrEntitiesChanged(projectId, language);
             return response;

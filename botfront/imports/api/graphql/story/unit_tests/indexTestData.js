@@ -5,12 +5,34 @@ export const frModelId = 'TEST_MODEL_FR';
 
 export const storyFixture = {
     _id: storyId,
-    story: '* get_started\n    - utter_get_started\n  - slot{"test_slot":true}\n  - action_testAction\n* get_started{"timeOfDay": "morning"}\n    - utter_TEST\n    - utter_image\n    - utter_quick\n    - utter_custom',
+    type: 'story',
+    steps: [
+        { intent: 'get_started' },
+        { action: 'utter_get_started' },
+        { slot_was_set: [{ test_slot: true }] },
+        { action: 'action_testAction' },
+        { intent: 'get_started', entities: [{ timeOfDay: 'morning' }] },
+        { action: 'utter_TEST' },
+        { action: 'utter_image' },
+        { action: 'utter_quick' },
+        { action: 'utter_custom' },
+        { action: 'utter_highlight' },
+        { action: 'utter_css' },
+        { action: 'utter_observe' },
+    ],
     title: 'story fixture',
     storyGroupId: 'TEST_STORY_GROUP',
     projectId: 'bf',
     events: ['utter_get_started', 'utter_h_0GF2S1'],
     branches: [],
+    triggerIntent: 'trigger_5viQv2qaf6kHaHfca',
+    rules: [{
+        trigger: {
+            when: 'always',
+            timeOnPage: 2,
+        },
+    }],
+    status: 'published',
 };
 
 export const examplesFixture = [
@@ -132,6 +154,7 @@ export const projectFixture = {
     _id: projectId,
     name: 'My Project',
     defaultLanguage: 'en',
+    namespace: 'bf-wack',
     languages: ['en', 'fr'],
     defaultDomain: {
         content:
@@ -162,6 +185,33 @@ export const botResponseFixture = {
             ],
         },
     ],
+};
+
+export const botResponsesFixtureWithHighlight = {
+    ...botResponseFixture,
+    _id: 'E0TEcQTw',
+    key: 'utter_highlight',
+    metadata: {
+        domHighlight: { style: 'default', selector: '.my-button' },
+    },
+};
+
+export const botResponsesFixtureWithCustomCss = {
+    ...botResponseFixture,
+    _id: 'E0TEcQGw',
+    key: 'utter_css',
+    metadata: {
+        customCss: { style: 'class', css: '.my-button' },
+    },
+};
+
+export const botResponseFixtureWithObserve = {
+    ...botResponseFixture,
+    _id: 'E0TEcQdw',
+    key: 'utter_observe',
+    metadata: {
+        pageEventCallbacks: { pageEvents: [{ event: 'change', selector: '.my-button', payload: 'chitchat.bye' }] },
+    },
 };
 
 export const botResponsesFixture = [

@@ -3,6 +3,7 @@ credentials:
     session_persistence: true
     base_url: http://localhost:5005
     socket_path: /socket.io/
+  rasa_addons.core.channels.bot_regression_test.BotRegressionTestInput: {}
 instance: http://localhost:5005
 bfApiHost: http://localhost:8080
 endpoints:
@@ -19,15 +20,8 @@ policies:
     epochs: 50
     max_history: 5
     batch_size: [32, 64]
+  - name: RulePolicy
   - name: AugmentedMemoizationPolicy
-  - name: rasa_addons.core.policies.BotfrontDisambiguationPolicy
-    fallback_trigger: 0.30
-    disambiguation_trigger: '$0 < 2 * $1'
-    disambiguation_template: 'utter_disambiguation'
-    n_suggestions: 2
-    excluded_intents:
-      - ^chitchat\..*
-      - ^basics\..*
 defaultDomain:
   slots:
     disambiguation_message:
@@ -37,3 +31,28 @@ defaultDomain:
     - action_botfront_disambiguation_followup
     - action_botfront_fallback
     - action_botfront_mapping
+webhooks:
+  restartRasaWebhook:
+    name: RestartRasa
+    url: ''
+    method: POST
+  uploadImageWebhook:
+    name: UploadImage
+    url: ''
+    method: POST
+  deleteImageWebhook:
+    name: DeleteImage
+    url: ''
+    method: DELETE
+  deploymentWebhook:
+    name: DeployProject
+    url: ''
+    method: POST
+  reportCrashWebhook:
+    name: ReportCrash
+    url: ''
+    method: POST
+  postTraining:
+    name: PostTraining
+    url: ''
+    method: POST

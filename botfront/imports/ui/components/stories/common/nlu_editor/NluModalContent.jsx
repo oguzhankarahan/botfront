@@ -18,6 +18,7 @@ import NluTable from '../../../nlu/models/NluTable';
 import InsertNlu from '../../../example_editor/InsertNLU';
 import ConfirmPopup from '../../../common/ConfirmPopup';
 import { ConversationOptionsContext } from '../../Context';
+import { can } from '../../../../../lib/scopes';
 import { useExamples, useLazyExamples } from '../../../nlu/models/hooks';
 import { ProjectContext } from '../../../../layouts/context';
 
@@ -35,13 +36,13 @@ function sameCanonicalGroup(example, payload) {
 
 const NLUModalContent = React.forwardRef((props, forwardedRef) => {
     const { closeModal, payload } = props;
+
     const {
         project: { _id: projectId },
         language,
     } = useContext(ProjectContext);
     const { reloadStories } = useContext(ConversationOptionsContext);
     const tableRef = useRef();
-
     const { data, loading: loadingExamples, refetch } = useExamples({
         projectId,
         language,
@@ -50,6 +51,7 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
         entities: payload.entities,
         matchEntityName: true,
     });
+    const canEdit = can('nlu-data:w', projectId);
     const fetchExamples = useLazyExamples({ projectId, language });
 
     // always refetch first
@@ -62,8 +64,8 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
     }, [refetch]);
 
     const checkPayloadsMatch = example => example.intent === payload.intent
-        && (example.entities || []).length === payload.entities.length
-        && (example.entities || []).every(entity => payload.entities.find(
+        && (example.entities || []).length === (payload.entities || []).length
+        && (example.entities || []).every(entity => (payload.entities || []).find(
             payloadEntity => payloadEntity.entity === entity.entity,
         ));
 
@@ -148,7 +150,7 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
             };
         });
         setExamples(updatedExamples);
-        return new Promise(() => ({ data: { deleteExamples: ids } })); // needed for mutationCallback in parent
+        return new Promise(() => ({ data: { deleteExamples: ids, projectId } })); // needed for mutationCallback in parent
     };
 
     const onUpdateExamples = (examplesUpdate) => {
@@ -216,12 +218,13 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
 
     const saveAndExit = () => {
         Meteor.call('nlu.saveExampleChanges', projectId, language, examples, () => {
-            reloadStories();
+            setTimeout(() => reloadStories(), 400);
             closeModal();
         });
     };
 
     const handleCancel = (e) => {
+        if (!canEdit) return closeModal();
         const madeChanges = examples.some(
             ({
                 edited, isNew, invalid, canonicalEdited, deleted,
@@ -293,7 +296,7 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
     return (
         <Container>
             <br />
-            <InsertNlu onSave={onNewExamples} defaultIntent={payload.intent} skipDraft />
+            {canEdit && <InsertNlu onSave={onNewExamples} defaultIntent={payload.intent} skipDraft />}
             <br />
             <NluTable
                 ref={tableRef}
@@ -308,41 +311,51 @@ const NLUModalContent = React.forwardRef((props, forwardedRef) => {
                 additionalIntentOption={payload.intent}
             />
             <div className='nlu-modal-buttons'>
-                <Popup
-                    disabled={!hasInvalidExamples}
-                    trigger={(
-                        <span>
-                            <Button
-                                color='blue'
-                                onClick={saveAndExit}
-                                disabled={hasInvalidExamples}
-                                data-cy='save-nlu'
-                            >
-                                Save and exit
-                            </Button>
-                        </span>
-                    )}
-                    header='Cannot save changes'
-                    content='You must fix invalid utterances prior to saving'
-                />
-                <Popup
-                    trigger={(
-                        <Button onClick={handleCancel} data-cy='cancel-nlu-changes' ref={cancelButtonRef}>
-                            Cancel
-                        </Button>
-                    )}
-                    content={(
-                        <ConfirmPopup
-                            description='Are you sure? All the data you entered above will be discarded!'
-                            onYes={closeModal}
-                            onNo={() => setCancelPopupOpen(false)}
+                {canEdit ? (
+                    <>
+                        <Popup
+                            disabled={!hasInvalidExamples}
+                            trigger={(
+                                <span>
+                                    <Button
+                                        color='blue'
+                                        onClick={saveAndExit}
+                                        disabled={hasInvalidExamples}
+                                        data-cy='save-nlu'
+                                    >
+                                    Save and exit
+                                    </Button>
+                                </span>
+                            )}
+                            header='Cannot save changes'
+                            content='You must fix invalid utterances prior to saving'
                         />
-                    )}
-                    on='click'
-                    open={cancelPopupOpen}
-                    onClose={() => setCancelPopupOpen(false)}
-                    onOpen={() => setCancelPopupOpen(true)}
-                />
+                
+                        <Popup
+                            trigger={(
+                                <Button onClick={handleCancel} data-cy='cancel-nlu-changes' ref={cancelButtonRef}>
+                                Cancel
+                                </Button>
+                            )}
+                            content={(
+                                <ConfirmPopup
+                                    description='Are you sure? All the data you entered above will be discarded!'
+                                    onYes={closeModal}
+                                    onNo={() => setCancelPopupOpen(false)}
+                                />
+                            )}
+                            disabled={!canEdit}
+                            on='click'
+                            open={cancelPopupOpen}
+                            onClose={() => setCancelPopupOpen(false)}
+                            onOpen={() => setCancelPopupOpen(true)}
+                        />
+                    </>
+                ) : (
+                    <Button onClick={closeModal} data-cy='close-nlu-modal'>
+                    Close
+                    </Button>
+                )}
             </div>
         </Container>
     );

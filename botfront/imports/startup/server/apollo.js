@@ -4,7 +4,8 @@ import { WebApp } from 'meteor/webapp';
 import { getUser } from 'meteor/apollo';
 import { Accounts } from 'meteor/accounts-base';
 import axios from 'axios';
-import { typeDefs, resolvers, schemaDirectives } from '../../api/graphql/index';
+import { typeDefs, resolvers } from '../../api/graphql/index';
+import { can } from '../../lib/scopes';
 
 const MONGO_URL = process.env.MONGO_URL || `mongodb://localhost:${(process.env.METEOR_PORT || 3000) + 1}/meteor`;
 
@@ -23,20 +24,27 @@ export const connectToDb = () => {
 
 export const runAppolloServer = () => {
     const server = new ApolloServer({
-        uploads: false,
         typeDefs,
         resolvers,
-        context: async ({ req: { headers: { authorization } } }) => {
+        context: async ({ req }) => {
+            const { headers: { authorization } } = req;
             let user = await getUser(authorization);
-            if (!user && process.env.API_KEY && process.env.API_KEY !== authorization) throw new AuthenticationError('Unauthorized');
+            const isHealthcheck = (req?.method === 'GET' && req?.query?.query === 'query {healthCheck}');
+            if (!isHealthcheck && !user && process.env.API_KEY && process.env.API_KEY !== authorization) throw new AuthenticationError('Unauthorized');
             if (!user) user = Meteor.users.findOne({ username: 'EXTERNAL_CONSUMER' });
             if (!user) {
                 Accounts.createUser({ username: 'EXTERNAL_CONSUMER' });
                 user = Meteor.users.findOne({ username: 'EXTERNAL_CONSUMER' });
             }
+            if (user.username === 'EXTERNAL_CONSUMER' && !can('responses:r', null, user._id)) {
+                Meteor.roleAssignment.update(
+                    { 'user._id': user._id },
+                    { user: { _id: user._id }, scope: null, inheritedRoles: [{ _id: 'responses:r' }] },
+                    { upsert: true },
+                );
+            }
             return ({ user });
         },
-        schemaDirectives,
     });
 
     server.applyMiddleware({
@@ -69,7 +77,7 @@ export const runAppolloServer = () => {
                 res.statusCode = 401;
                 res.end();
             }
-        }).catch(function (error) {
+        }).catch(function () {
             res.statusCode = 500;
             res.end();
         });

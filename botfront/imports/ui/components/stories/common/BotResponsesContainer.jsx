@@ -11,13 +11,13 @@ import {
 import { useMutation } from '@apollo/react-hooks';
 import { safeLoad } from 'js-yaml';
 
-import { withRouter } from 'react-router';
-import { connect } from 'react-redux';
 import IconButton from '../../common/IconButton';
 import BotResponseEditor from '../../templates/templates-list/BotResponseEditor';
 import ButtonTypeToggle from '../../templates/common/ButtonTypeToggle';
 import BotResponseContainer from './BotResponseContainer';
-import { setStoriesCurrent } from '../../../store/actions/actions';
+import { useUpload } from '../hooks/image.hooks';
+
+import { can } from '../../../../lib/scopes';
 import { ProjectContext } from '../../../layouts/context';
 import {
     checkMetadataSet, toggleButtonPersistence, parseContentType, checkContentEmpty,
@@ -35,13 +35,14 @@ const BotResponsesContainer = (props) => {
         onChange,
         onDeleteAllResponses,
         deletable,
+        renameable,
         enableEditPopup,
         tag,
-        setActiveStories,
         responseLocations,
         loadingResponseLocations,
-        router,
-        isNew,
+        disableEnterKey,
+        editable: initialEditable,
+        theme,
     } = props;
     const {
         project: { _id: projectId },
@@ -62,14 +63,17 @@ const BotResponsesContainer = (props) => {
     const [editorOpen, setEditorOpen] = useState(false);
     const [toBeCreated, setToBeCreated] = useState(null);
     const [focus, setFocus] = useState(null);
+    const [uploadImage] = useUpload(name);
     const [deletePopupOpen, setDeletePopupOpen] = useState(false);
     const typeName = useMemo(() => template && template.__typename, [template]);
+
+    const editable = can('responses:w', projectId) && initialEditable;
 
     useEffect(() => {
         Promise.resolve(initialValue).then((res) => {
             if (!res) return;
             setTemplate(res);
-            if (res.isNew && isNew !== false) setFocus(0);
+            if (res.isNew) setFocus(0);
         });
     }, [initialValue]);
 
@@ -131,14 +135,6 @@ const BotResponsesContainer = (props) => {
 
     const handleNameChange = newName => onChange({ key: newName, payload: template });
 
-    const handleLinkToStory = (selectedId) => {
-        const { location: { pathname } } = router;
-        const storyIds = responseLocations.map(({ _id }) => _id);
-        const openStories = [selectedId, ...storyIds.filter(storyId => storyId !== selectedId)];
-        router.replace({ pathname, query: { 'ids[]': openStories } });
-        setActiveStories(openStories);
-    };
-
     useEffect(() => {
         if (toBeCreated || toBeCreated === 0) {
             handleCreateReponse(toBeCreated);
@@ -161,6 +157,9 @@ const BotResponsesContainer = (props) => {
                     onFocus={() => setFocus(index)}
                     editCustom={() => setEditorOpen(true)}
                     hasMetadata={template && checkMetadataSet(template.metadata)}
+                    metadata={(template || {}).metadata}
+                    editable={editable}
+                    disableEnterKey={disableEnterKey}
                 />
                 {deletable && sequenceArray.length > 1 && <IconButton onClick={() => handleDeleteResponse(index)} icon='trash' />}
             </div>
@@ -172,19 +171,23 @@ const BotResponsesContainer = (props) => {
             name={name}
             responseLocations={responseLocations}
             loading={loadingResponseLocations}
-            linkToStory={handleLinkToStory}
             onChange={handleNameChange}
+            editable={editable}
         />
     );
 
+    const renderThemeTag = () => (<span className='bot-response theme-tag'>{theme}</span>);
+
     return (
-        <ResponseContext.Provider value={{ name }}>
-            <div className='utterances-container exception-wrapper-target'>
+        <ResponseContext.Provider value={{ name, uploadImage }}>
+            <div className={`utterances-container exception-wrapper-target theme-${theme}`}>
                 {!template && (
-                    <Placeholder>
-                        <Placeholder.Line />
-                        <Placeholder.Line />
-                    </Placeholder>
+                    <div className='loading-bot-response'>
+                        <Placeholder fluid>
+                            <Placeholder.Line />
+                            <Placeholder.Line />
+                        </Placeholder>
+                    </div>
                 )}
                 {getSequence().map(renderResponse)}
                 <div className='side-by-side right narrow top-right'>
@@ -192,30 +195,38 @@ const BotResponsesContainer = (props) => {
                         onToggleButtonType={handleToggleQuickReply}
                         responseType={typeName}
                     />
-                    {otherLanguages.length > 0 && initialValue && !initialValue.isNew && getSequence().length === 1 && !checkContentEmpty(getSequence()[0])
-                        && (
-                            <Dropdown
-                                button
-                                icon={null}
-                                compact
-                                data-cy='import-from-lang'
-                                className='import-from-lang'
-                                options={otherLanguages}
-                                text='Copy from'
-                                onChange={(_, selection) => {
-                                    importRespFromLang({
-                                        variables: {
-                                            projectId, key: name, originLang: selection.value, destLang: language,
-                                        },
-                                    });
-                                }}
-                            />
-                        )
+                    {otherLanguages.length > 0
+                    && initialValue
+                    && !initialValue.isNew
+                    && getSequence().length === 1
+                    && !checkContentEmpty(getSequence()[0])
+                    && editable
+                    && (
+                        <Dropdown
+                            button
+                            icon={null}
+                            compact
+                            data-cy='import-from-lang'
+                            className='import-from-lang'
+                            options={otherLanguages}
+                            text='Copy from'
+                            onChange={(_, selection) => {
+                                importRespFromLang({
+                                    variables: {
+                                        projectId, key: name, originLang: selection.value, destLang: language,
+                                    },
+                                });
+                            }}
+                        />
+                    )
                     }
                     {enableEditPopup && (
                         <IconButton
                             icon='ellipsis vertical'
-                            onClick={() => setEditorOpen(true)}
+                            onClick={() => {
+                                setEditorOpen(true);
+                            }}
+                            onMouseDown={(e) => { e.stopPropagation(); }}
                             data-cy='edit-responses'
                             className={template && checkMetadataSet(template.metadata) ? 'light-green' : 'grey'}
                             color={null}
@@ -226,10 +237,10 @@ const BotResponsesContainer = (props) => {
                             open={editorOpen}
                             name={name}
                             closeModal={() => setEditorOpen(false)}
-                            renameable={false}
+                            renameable={renameable}
                         />
                     )}
-                    {deletable && onDeleteAllResponses && (
+                    {deletable && onDeleteAllResponses && editable && (
                         <>
                             <Popup
                                 trigger={<span><IconButton onMouseDown={() => {}} icon='trash' /></span>}
@@ -237,8 +248,8 @@ const BotResponsesContainer = (props) => {
                                     <ConfirmPopup
                                         title='Delete response?'
                                         description={responseLocations.length > 1
-                                            ? 'Remove this response from the current story'
-                                            : 'Remove this response from the current story and delete it'
+                                            ? 'Remove this response from the current fragment'
+                                            : 'Remove this response from the current fragment and delete it'
                                         }
                                         onYes={() => {
                                             setDeletePopupOpen(false);
@@ -256,6 +267,7 @@ const BotResponsesContainer = (props) => {
                     )}
                 </div>
                 {renderDynamicResponseName()}
+                {theme !== 'default' && renderThemeTag()}
             </div>
         </ResponseContext.Provider>
     );
@@ -269,17 +281,17 @@ BotResponsesContainer.propTypes = {
     onDeleteAllResponses: PropTypes.func,
     enableEditPopup: PropTypes.bool,
     tag: PropTypes.string,
-    setActiveStories: PropTypes.func.isRequired,
     responseLocations: PropTypes.array,
     loadingResponseLocations: PropTypes.bool,
-    router: PropTypes.object.isRequired,
-    isNew: PropTypes.bool,
+    renameable: PropTypes.bool,
+    disableEnterKey: PropTypes.bool,
+    editable: PropTypes.bool,
+    theme: PropTypes.string,
 };
 
 BotResponsesContainer.defaultProps = {
     deletable: true,
     name: null,
-    isNew: false,
     initialValue: null,
     onChange: () => {},
     onDeleteAllResponses: null,
@@ -287,6 +299,10 @@ BotResponsesContainer.defaultProps = {
     tag: null,
     responseLocations: [],
     loadingResponseLocations: false,
+    renameable: true,
+    disableEnterKey: false,
+    editable: true,
+    theme: 'default',
 };
 
-export default connect(() => ({}), { setActiveStories: setStoriesCurrent })(withRouter(BotResponsesContainer));
+export default BotResponsesContainer;

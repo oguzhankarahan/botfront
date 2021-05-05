@@ -11,12 +11,12 @@ const BotResponseName = (props) => {
     const {
         responseLocations,
         loading,
-        linkToStory,
         name,
         onChange,
+        editable,
     } = props;
 
-    const { reloadStories } = useContext(ConversationOptionsContext);
+    const { reloadStories, linkToStory } = useContext(ConversationOptionsContext);
 
     const [popupOpen, setPopupOpen] = useState(false);
     const [nameInputValue, setNameInputValue] = useState(name);
@@ -64,7 +64,7 @@ const BotResponseName = (props) => {
                 trigger={(
                     <span>
                         <Input
-                            disabled={saving}
+                            disabled={saving || !editable}
                             className={`response-name-input ${renameError ? 'error' : ''}`}
                             value={nameInputValue}
                             onBlur={handleSaveName}
@@ -90,19 +90,19 @@ const BotResponseName = (props) => {
                     )}
                     content={(
                         <>
-                            <Header>This response is used in {responseLocations.length} stories</Header>
-                            <List data-cy='response-locations-list' className='response-locations-list'>
-                                {responseLocations.map(({ title, _id, storyGroupId }) => (
+                            <Header as='h4'>This response is used in {responseLocations.length} fragments</Header>
+                            <List data-cy='response-locations-list' className='link-list'>
+                                {responseLocations.map(({ title, _id }) => (
                                     <List.Item
-                                        className='story-name-link'
                                         key={_id}
                                         onClick={() => {
                                             setPopupOpen(false);
-                                            linkToStory(_id, storyGroupId);
+                                            linkToStory(_id);
                                         }}
                                         data-cy='story-name-link'
                                     >
-                                    ##{title}
+                                        <span className='story-title-prefix'>##</span>
+                                        <span className='story-name-link'>{title}</span>
                                     </List.Item>
                                 ))}
                             </List>
@@ -130,15 +130,16 @@ const BotResponseName = (props) => {
 BotResponseName.propTypes = {
     responseLocations: PropTypes.array,
     loading: PropTypes.bool,
-    linkToStory: PropTypes.func.isRequired,
     name: PropTypes.string.isRequired,
     onChange: PropTypes.func,
+    editable: PropTypes.bool,
 };
 
 BotResponseName.defaultProps = {
     responseLocations: [],
     loading: false,
     onChange: () => new Promise(resolve => resolve()),
+    editable: true,
 };
 
 export default BotResponseName;

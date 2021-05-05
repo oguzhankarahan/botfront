@@ -11,7 +11,8 @@ import {
 import 'react-select/dist/react-select.css';
 import { connect } from 'react-redux';
 import { debounce } from 'lodash';
-import { PageMenu } from '../../utils/Utils';
+import PageMenu from '../../utils/PageMenu';
+import { cleanDucklingFromExamples } from '../../../../lib/utils';
 import { NLUModels } from '../../../../api/nlu_model/nlu_model.collection';
 import InsertNlu from '../../example_editor/InsertNLU';
 import Evaluation from '../evaluation/Evaluation';
@@ -21,6 +22,7 @@ import Gazette from '../../synonyms/Gazette';
 import RegexFeatures from '../../synonyms/RegexFeatures';
 import NLUPipeline from './settings/NLUPipeline';
 import Statistics from './Statistics';
+import OutOfScope from './OutOfScope';
 import DeleteModel from './DeleteModel';
 import { clearTypenameField } from '../../../../lib/client.safe.utils';
 import LanguageDropdown from '../../common/LanguageDropdown';
@@ -117,14 +119,6 @@ function NLUModel(props) {
     useEffect(() => {
         if (refetch) refetch();
     }, [variables]);
-    // always refetch first
-    const hasRefetched = useRef(false);
-    useEffect(() => {
-        if (!hasRefetched.current && typeof refetch === 'function') {
-            refetch();
-            hasRefetched.current = true;
-        }
-    }, [refetch]);
 
     const handleLanguageChange = (value) => {
         changeWorkingLanguage(value);
@@ -152,9 +146,10 @@ function NLUModel(props) {
     };
 
     const handleInsert = (examples) => {
+        const cleanedExamples = cleanDucklingFromExamples(examples);
         insertExamples({
             variables: {
-                examples,
+                examples: cleanedExamples,
                 language: workingLanguage,
                 projectId,
             },
@@ -176,7 +171,7 @@ function NLUModel(props) {
 
     const topMenuItems = [
         ['Training Data', 'database', true],
-        ['Evaluation', 'percent', true],
+        ['Evaluation', 'percent', can('nlu-data:x', projectId)],
         ['Statistics', 'pie graph', true],
         ['Settings', 'setting', true],
     ];
@@ -229,7 +224,7 @@ function NLUModel(props) {
                                                 language: workingLanguage,
                                             },
                                         })}
-                                        deleteExamples={ids => deleteExamples({ variables: { ids } })}
+                                        deleteExamples={ids => deleteExamples({ variables: { ids, projectId } })}
                                         switchCanonical={example => switchCanonical({
                                             variables: {
                                                 projectId,
@@ -255,6 +250,10 @@ function NLUModel(props) {
                             {
                                 menuItem: 'Gazette',
                                 render: () => <Gazette model={model} />,
+                            },
+                            {
+                                menuItem: 'Out Of Scope',
+                                render: () => <OutOfScope />,
                             },
                             {
                                 menuItem: 'Regex',
@@ -293,10 +292,10 @@ function NLUModel(props) {
                                     <NLUPipeline model={model} projectId={projectId} />
                                 ),
                             },
-                            {
+                            ...(can('projects:w', projectId) ? ([{
                                 menuItem: 'Delete',
                                 render: () => <DeleteModel />,
-                            },
+                            }]) : []),
                         ]}
                     />
                 )}

@@ -81,14 +81,13 @@ export const defaultTemplate = (template) => {
             ],
         };
     case 'CustomPayload':
-        return { __typename: 'CustomPayload', custom: '' };
+        return { __typename: 'CustomPayload', custom: {} };
     case 'ImagePayload':
         return {
             image: '', __typename: 'ImagePayload',
         };
     case 'CarouselPayload':
         return {
-            template_type: 'generic',
             elements: [defaultCarouselSlide()],
             __typename: 'CarouselPayload',
         };
@@ -130,7 +129,6 @@ export const parseContentType = (content) => {
         (content.quick_replies === undefined || Array.isArray(content.quick_replies)),
         (content.elements === undefined || (
             Array.isArray(content.elements)
-            && typeof content.template_type === 'string'
             && content.elements.every(el => (
                 typeof el === 'object'
                 && (el.buttons === undefined || Array.isArray(el.buttons))
@@ -160,22 +158,38 @@ export const getDefaultTemplateFromSequence = (sequence) => {
 export const addResponseLanguage = (response, language) => {
     const updatedResponse = response;
     const newValue = {
-        sequence: [{ content: safeDump(defaultTemplate(parseContentType(safeLoad(response.values[0].sequence[0].content)))) }],
+        sequence: response.values
+            ? [
+                {
+                    content: safeDump(
+                        defaultTemplate(
+                            parseContentType(
+                                safeLoad(response.values[0].sequence[0].content),
+                            ),
+                        ),
+                    ),
+                },
+            ]
+            : [{ content: 'text: \'\'' }],
         lang: language,
     };
-    updatedResponse.values = [...response.values, newValue];
+    updatedResponse.values = [...(response.values || []), newValue];
     return updatedResponse;
 };
 
 export const checkMetadataSet = (metadata) => {
     if (!metadata) return false;
     const {
-        linkTarget, userInput, forceOpen, forceClose,
+        linkTarget, userInput, forceOpen, forceClose, pageChangeCallbacks = null, pageEventCallbacks = null, domHighlight = null, customCss = null,
     } = metadata;
     if (linkTarget === '_blank'
         && userInput === 'show'
         && forceOpen === false
         && forceClose === false
+        && pageChangeCallbacks === null
+        && domHighlight === null
+        && pageEventCallbacks === null
+        && customCss === null
     ) {
         return false;
     }

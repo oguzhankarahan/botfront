@@ -18,6 +18,7 @@ import {
     Button,
     Loader,
     Popup,
+    Image,
 } from 'semantic-ui-react';
 import { useIntentAndEntityList } from '../components/nlu/models/hooks';
 import { wrapMeteorCallback } from '../components/utils/Errors';
@@ -26,14 +27,18 @@ import { Projects } from '../../api/project/project.collection';
 import { languages as languageOptions } from '../../lib/languages';
 import { setProjectId, setWorkingLanguage, setShowChat } from '../store/actions/actions';
 import { Credentials } from '../../api/credentials';
+import { NLUModels } from '../../api/nlu_model/nlu_model.collection';
 import { Instances } from '../../api/instances/instances.collection';
 import { Slots } from '../../api/slots/slots.collection';
+import { Stories } from '../../api/story/stories.collection';
 import 'semantic-ui-css/semantic.min.css';
+import { GlobalSettings } from '../../api/globalSettings/globalSettings.collection';
 import { ProjectContext } from './context';
-import { setsAreIdentical } from '../../lib/utils';
+import { setsAreIdentical, cleanDucklingFromExamples } from '../../lib/utils';
 import { INSERT_EXAMPLES } from '../components/nlu/models/graphql';
 import apolloClient from '../../startup/client/apollo';
 import { useResponsesContext } from './response.hooks';
+import { can } from '../../lib/scopes';
 
 const ProjectChat = React.lazy(() => import('../components/project/ProjectChat'));
 
@@ -43,16 +48,22 @@ function Project(props) {
         projectId,
         loading,
         workingLanguage,
+        workingDeploymentEnvironment,
         projectLanguages,
         router: { replace, location: { pathname } } = {},
         showChat,
         changeShowChat,
         instance,
         slots,
+        dialogueActions,
         channel,
         children,
+        settings,
+        allowContextualQuestions,
+        hasNoWhitespace,
     } = props;
     const [resizingChatPane, setResizingChatPane] = useState(false);
+    const [requestedSlot, setRequestedSlot] = useState(null);
     const {
         intents: intentsList = {},
         entities: entitiesList = [],
@@ -72,8 +83,21 @@ function Project(props) {
         }
     }, [workingLanguage, projectId]);
 
+    useEffect(() => () => {
+        Meteor.call(
+            'project.getContextualSlot',
+            projectId,
+            wrapMeteorCallback((err, res) => {
+                setRequestedSlot(res);
+            }),
+        );
+    }, [allowContextualQuestions]);
+
     const findExactMatch = (canonicals, entities) => {
-        const exactMatch = canonicals.filter(ex => setsAreIdentical(ex.entities, entities))[0];
+        const exactMatch = canonicals.filter(ex => setsAreIdentical(
+            ex.entities.map(e => `${e.entity}:${e.value}`),
+            entities.map(e => `${e.entity}:${e.value}`),
+        ))[0];
         return exactMatch ? exactMatch.example : null;
     };
 
@@ -85,11 +109,8 @@ function Project(props) {
                 : {}
             : intentsList;
         return Object.keys(filtered).map(
-            i => findExactMatch(
-                filtered[i],
-                entities.map(e => e.entity),
-            ) || { intent: i },
-        );
+            i => findExactMatch(filtered[i], entities),
+        ).filter(ex => ex);
     };
 
     const parseUtterance = utterance => Meteor.callWithPromise('rasa.parse', instance, [
@@ -97,12 +118,13 @@ function Project(props) {
     ]);
 
     const addUtterancesToTrainingData = (utterances, callback = () => {}) => {
-        if (!(utterances || []).filter(u => u.text).length) callback(null, { success: true });
+        if (!(utterances || []).filter(u => u.text).length) { callback(null, { success: true }); }
+        const cleanedUtterances = cleanDucklingFromExamples(utterances);
         apolloClient
             .mutate({
                 mutation: INSERT_EXAMPLES,
                 variables: {
-                    examples: utterances.filter(u => u.text),
+                    examples: cleanedUtterances.filter(u => u.text),
                     projectId,
                     language: workingLanguage,
                 },
@@ -132,21 +154,35 @@ function Project(props) {
         </Placeholder>
     );
 
-
     return (
         <div style={{ height: '100vh' }}>
             <div className='project-sidebar'>
-                <Header as='h1' className='logo'>
-                    Botfront.
-                </Header>
-                <Header as='h1' className='simple-logo'>
-                    B.
-                </Header>
+                {(settings && settings.settings && settings.settings.public && settings.settings.public.logoUrl) || project.logoUrl ? (
+                    <Header as='h1' className='logo'>
+                        <Image src={!loading ? project.logoUrl || settings.settings.public.logoUrl : ''} centered className='custom-logo' />
+                    </Header>
+                ) : (
+                    <Header as='h1' className='logo'>
+                        Botfront.
+                    </Header>
+                )}
+                {(settings && settings.settings && settings.settings.public && settings.settings.public.smallLogoUrl) || project.smallLogoUrl ? (
+                    <Header as='h1' className='simple-logo'>
+                        <Image src={!loading ? project.smallLogoUrl || settings.settings.public.smallLogoUrl : ''} centered className='custom-small-logo' />
+                    </Header>
+                ) : (
+                    <Header as='h1' className='simple-logo'>
+                        B.
+                    </Header>
+                )}
                 {loading && renderPlaceholder(true, false)}
                 {!loading && (
                     <ProjectSidebarComponent
                         projectId={projectId}
-                        handleChangeProject={pid => replace(pathname.replace(/\/project\/.*?\//, `/project/${pid}/`))}
+                        handleChangeProject={pid => replace(
+                            pathname.replace(/\/project\/.*?\//, `/project/${pid}/`),
+                        )
+                        }
                     />
                 )}
             </div>
@@ -179,7 +215,9 @@ function Project(props) {
                                 intents: Object.keys(intentsList || {}),
                                 entities: entitiesList || [],
                                 slots,
+                                dialogueActions,
                                 language: workingLanguage,
+                                environment: workingDeploymentEnvironment,
                                 upsertResponse,
                                 responses,
                                 addResponses,
@@ -189,6 +227,8 @@ function Project(props) {
                                 getCanonicalExamples,
                                 resetResponseInCache,
                                 setResponseInCache,
+                                requestedSlot,
+                                hasNoWhitespace,
                             }}
                         >
                             <DndProvider backend={HTML5Backend}>
@@ -200,8 +240,7 @@ function Project(props) {
                                                 <Button
                                                     size='big'
                                                     circular
-                                                    onClick={() => changeShowChat(!showChat)
-                                                    }
+                                                    onClick={() => changeShowChat(!showChat)}
                                                     icon='comment'
                                                     primary
                                                     className='open-chat-button'
@@ -226,7 +265,7 @@ function Project(props) {
                     )}
                 </SplitPane>
             </div>
-            <Alert stack={{ limit: 3 }} />
+            <Alert stack={{ limit: 3 }} html={true} />
         </div>
     );
 }
@@ -238,19 +277,28 @@ Project.propTypes = {
     projectId: PropTypes.string.isRequired,
     instance: PropTypes.object,
     workingLanguage: PropTypes.string,
+    workingDeploymentEnvironment: PropTypes.string,
     projectLanguages: PropTypes.array.isRequired,
     slots: PropTypes.array.isRequired,
+    dialogueActions: PropTypes.array.isRequired,
     loading: PropTypes.bool.isRequired,
     channel: PropTypes.object,
+    settings: PropTypes.object,
     showChat: PropTypes.bool.isRequired,
     changeShowChat: PropTypes.func.isRequired,
+    allowContextualQuestions: PropTypes.bool,
+    hasNoWhitespace: PropTypes.bool,
 };
 
 Project.defaultProps = {
     channel: null,
+    settings: {},
     project: {},
     instance: {},
     workingLanguage: 'en',
+    workingDeploymentEnvironment: 'development',
+    allowContextualQuestions: false,
+    hasNoWhitespace: false,
 };
 
 const ProjectContainer = withTracker((props) => {
@@ -266,20 +314,43 @@ const ProjectContainer = withTracker((props) => {
     if (!Meteor.userId()) {
         router.push('/login');
     }
-    
+
     if (!projectId) return browserHistory.replace({ pathname: '/404' });
     const projectHandler = Meteor.subscribe('projects', projectId);
     const credentialsHandler = Meteor.subscribe('credentials', projectId);
+    const settingsHandler = Meteor.subscribe('settings', projectId);
+    const settings = GlobalSettings.findOne({}, {
+        fields: { 'settings.public.logoUrl': 1, 'settings.public.smallLogoUrl': 1 },
+    });
     const instanceHandler = Meteor.subscribe('nlu_instances', projectId);
     const slotsHandler = Meteor.subscribe('slots', projectId);
+    const allowContextualQuestionsHandler = Meteor.subscribe('project.requestedSlot', projectId);
+    let nluModelsHandler = null;
+    let hasNoWhitespace;
+    if (can('nlu-data:r', projectId)) {
+        nluModelsHandler = Meteor.subscribe('nlu_models', projectId, workingLanguage);
+        ({ hasNoWhitespace } = NLUModels.findOne({ projectId, language: workingLanguage }, { fields: { hasNoWhitespace: 1 } }) || {});
+    } else {
+        hasNoWhitespace = false;
+    }
+    let storiesHandler = null;
+    if (can('responses:r', projectId)) {
+        storiesHandler = Meteor.subscribe('stories.events', projectId);
+    }
+    const dialogueActions = storiesHandler ? Array.from(new Set((Stories
+        .find().fetch() || []).flatMap(story => story.events))) : [];
     const instance = Instances.findOne({ projectId });
     const readyHandler = handler => handler;
     const readyHandlerList = [
         Meteor.user(),
         credentialsHandler.ready(),
         projectHandler.ready(),
+        settingsHandler.ready(),
         instanceHandler.ready(),
         slotsHandler.ready(),
+        storiesHandler ? storiesHandler.ready() : true,
+        allowContextualQuestionsHandler.ready(),
+        nluModelsHandler ? nluModelsHandler.ready() : true,
     ];
     const ready = readyHandlerList.every(readyHandler);
     const project = Projects.findOne({ _id: projectId });
@@ -299,6 +370,9 @@ const ProjectContainer = withTracker((props) => {
         });
         credentials = credentials ? yaml.safeLoad(credentials.credentials) : {};
         channel = credentials['rasa_addons.core.channels.webchat.WebchatInput'];
+        if (!channel) {
+            channel = credentials['rasa_addons.core.channels.webchat_plus.WebchatPlusInput'];
+        }
     }
 
     // update store if new projectId
@@ -306,10 +380,19 @@ const ProjectContainer = withTracker((props) => {
         changeProjectId(projectId);
     }
 
-    const projectLanguages = ready ? (project.languages || []).map(value => ({ text: languageOptions[value].name, value })) : [];
+    const projectLanguages = ready
+        ? (project.languages || []).map(value => ({
+            text: languageOptions[value].name,
+            value,
+        }))
+        : [];
 
     // update working language
-    if (ready && defaultLanguage && !project.languages.includes(workingLanguage)) {
+    if (
+        ready
+        && defaultLanguage
+        && !projectLanguages.some(({ value }) => value === workingLanguage)
+    ) {
         changeWorkingLanguage(defaultLanguage);
     }
 
@@ -320,12 +403,17 @@ const ProjectContainer = withTracker((props) => {
         channel,
         instance,
         slots: Slots.find({}).fetch(),
+        dialogueActions,
         projectLanguages,
+        settings,
+        allowContextualQuestions: ready ? project.allowContextualQuestions : false,
+        hasNoWhitespace,
     };
 })(Project);
 
 const mapStateToProps = state => ({
     workingLanguage: state.settings.get('workingLanguage'),
+    workingDeploymentEnvironment: state.settings.get('workingDeploymentEnvironment'),
     projectId: state.settings.get('projectId'),
     showChat: state.settings.get('showChat'),
 });

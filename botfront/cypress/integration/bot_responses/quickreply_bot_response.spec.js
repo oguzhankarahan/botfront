@@ -57,8 +57,9 @@ describe('Bot responses', function() {
     it('should create quick reply variations', function() {
         cy.createResponseFromResponseMenu('quickreply', 'test_A');
 
-        cy.dataCy('bot-response-input').click().find('textarea').type('response text deleted');
-        cy.dataCy('button_title').click({ force: true });
+        cy.dataCy('bot-response-input').click().find('textarea')
+            .type('response text deleted')
+            .blur();
         cy.dataCy('button_title').click({ force: true });
         cy.dataCy('enter-button-title').find('input').type('button deleted');
         cy.dataCy('intent-label').should('exist').click();
@@ -79,10 +80,10 @@ describe('Bot responses', function() {
         cy.dataCy('save-button').click();
 
         cy.dataCy('add-variation').click();
-
+        cy.dataCy('variation-container').should('have.length', 2);
         cy.dataCy('bot-response-input').last().click().find('textarea')
-            .type('response text B');
-        cy.dataCy('button_title').last().click({ force: true });
+            .type('response text B')
+            .blur();
         cy.dataCy('button_title').last().click({ force: true });
         cy.dataCy('enter-button-title').find('input').type('button B');
         cy.dataCy('intent-label').should('exist').click();
@@ -101,7 +102,7 @@ describe('Bot responses', function() {
         cy.createNLUModelProgramatically('bf', '', 'fr');
         cy.visit('/project/bf/dialogue');
         cy.createStoryGroup();
-        cy.createStoryInGroup();
+        cy.createFragmentInGroup();
         cy.dataCy('single-story-editor').trigger('mouseover');
         cy.dataCy('add-bot-line').click({ force: true });
         cy.dataCy('from-qr-template').click({ force: true });
@@ -114,7 +115,7 @@ describe('Bot responses', function() {
         cy.createNLUModelProgramatically('bf', '', 'fr');
         cy.visit('/project/bf/dialogue');
         cy.createStoryGroup();
-        cy.createStoryInGroup();
+        cy.createFragmentInGroup();
         cy.dataCy('story-title').should('have.value', 'Groupo (1)');
         cy.dataCy('from-qr-template').click({ force: true });
         cy.dataCy('bot-response-input').find('textarea').click();

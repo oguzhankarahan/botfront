@@ -8,7 +8,10 @@ export const EndpointsSchema = new SimpleSchema({
         custom: validateYaml,
         optional: true,
     },
-
+    environment: {
+        type: String,
+        optional: true,
+    },
     projectId: { type: String },
     createdAt: {
         type: Date,
@@ -20,5 +23,6 @@ export const EndpointsSchema = new SimpleSchema({
         optional: true,
         autoValue: () => new Date(),
     },
+    environment: { type: String, optional: true },
 
 }, { tracker: Tracker });

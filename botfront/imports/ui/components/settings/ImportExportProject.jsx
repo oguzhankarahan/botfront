@@ -1,19 +1,19 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { withTracker } from 'meteor/react-meteor-data';
 
 import { Menu, Tab } from 'semantic-ui-react';
 
-import { GlobalSettings } from '../../../api/globalSettings/globalSettings.collection';
+import { connect } from 'react-redux';
 
-import ImportProject from './ImportProject.jsx';
+import ImportRasaFiles from './ImportRasaFiles.jsx';
 import ExportProject from './ExportProject.jsx';
-
+import { can } from '../../../lib/scopes';
 
 class ImportExportProject extends React.Component {
     constructor (props) {
         super(props);
-        this.state = { activeMenuItem: 'Import', loading: false };
+        const { projectId } = props;
+        this.state = { activeMenuItem: can('import:x', projectId) ? 'Import' : 'Export', loading: false };
     }
 
     renderMenuItem = (itemText, itemKey = itemText) => {
@@ -36,25 +36,29 @@ class ImportExportProject extends React.Component {
 
     getMenuPanes = () => {
         const { loading } = this.state;
-        const { apiHost } = this.props;
-        return [
-            {
+        const { projectId } = this.props;
+        const panes = [];
+        if (can('import:x', projectId)) {
+            panes.push({
                 menuItem: this.renderMenuItem('Import'),
                 render: () => (
                     <Tab.Pane loading={loading} key='Import' data-cy='import-project-tab'>
-                        <ImportProject setLoading={this.setLoading} apiHost={apiHost} />
+                        <ImportRasaFiles />
                     </Tab.Pane>
                 ),
-            },
-            {
+            });
+        }
+        if (can('export:x', projectId)) {
+            panes.push({
                 menuItem: this.renderMenuItem('Export'),
                 render: () => (
                     <Tab.Pane loading={loading} key='Export' data-cy='export-project-tab'>
-                        <ExportProject setLoading={this.setLoading} apiHost={apiHost} />
+                        <ExportProject setLoading={this.setLoading} />
                     </Tab.Pane>
                 ),
-            },
-        ];
+            });
+        }
+        return panes;
     }
 
     render () {
@@ -65,23 +69,11 @@ class ImportExportProject extends React.Component {
 }
 
 ImportExportProject.propTypes = {
-    apiHost: PropTypes.string,
+    projectId: PropTypes.string.isRequired,
 };
 
-ImportExportProject.defaultProps = {
-    apiHost: '',
-};
+const mapStateToProps = state => ({
+    projectId: state.settings.get('projectId'),
+});
 
-export default withTracker(() => {
-    const settingsHandler = Meteor.subscribe('settings');
-    const settings = GlobalSettings
-        .findOne({ _id: 'SETTINGS' }, { fields: { 'settings.private.bfApiHost': true } });
-    let api = 'dummy';
-    if (settings && settings.settings && settings.settings.private && settings.settings.private.bfApiHost) {
-        api = settings.settings.private.bfApiHost;
-    }
-    return {
-        ready: settingsHandler.ready(),
-        apiHost: api,
-    };
-})(ImportExportProject);
+export default connect(mapStateToProps)(ImportExportProject);

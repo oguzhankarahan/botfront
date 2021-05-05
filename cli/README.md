@@ -11,10 +11,10 @@
     <img alt="npm" src="https://img.shields.io/npm/v/botfront.svg">
 </a>
 <a href='https://github.com/botfront/botfront/blob/master/LICENSE'>
-    <img alt="License" src="https://img.shields.io/badge/license-AGPLv3-blue.svg">
+    <img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg">
 </a>
-<a href='https://spectrum.chat/botfront'>
-    <img alt="License" src="https://withspectrum.github.io/badge/badge.svg">
+<a href='https://github.com/botfront/botfront/discussions'>
+    <img alt="Github discussions link" src="https://img.shields.io/badge/Community%20support-Start%20a%20discussion-green">
 </a>
 </p>
 
@@ -29,14 +29,16 @@
 </p>
 <p align="center">
   <a href="./CHANGELOG.md">Release Notes</a> •
-  <a href="https://spectrum.chat/botfront">Get help</a> •
+  <a href="https://github.com/botfront/botfront/discussions">Get community support</a> •
   <a href="https://botfront.io">Botfront.io</a>
 </p>
 
 <br/>
 <h2 align="center">What is it</h2>
 
-Conversational projects require easy prototyping, fast implementation and continuous iteration. With **[Botfront](https://botfront.io)** you can build context-aware conversation flows in minutes and accelerate time to market by an exponential factor.
+Botfront is an open-source enterprise-grade conversational platform built with Rasa. 
+It provides super intuitive interfaces and collaborative features to domain experts, conversational designers and engineers. 
+
 <br/>
 <h2 name="highlights" align="center">Highlights</h2>
 
@@ -61,23 +63,33 @@ Conversational projects require easy prototyping, fast implementation and contin
 <table>
 
 <tr>
-    <td width="33%"><h4>Builds conversation as if you were chatting</h4></td>
+    <td width="33%"><h4>An intuitive interface for stories and rules</h4></td>
     <td width="67%">Botfront provides a <a href="https://botfront.io/docs/rasa/conversation-builder">unique and natural conversation authoring experience</a>. You can create complex dialog flows in minutes</td>
 </tr>
-
 <tr>
-    <td width="33%"><h4>Train & evaluate NLU models</h4></td>
-    <td width="67%">Botfront comes with a complete NLU toolbox. You can tag vast amounts of data efficiently, train and evaluate models. <a href="https://botfront.io/docs/rasa/nlu/evaluation/#evaluation-methods">Several evaluation methods</a> are available depending on the development stage of your model</td>
+    <td width="33%"><h4>A flow chart editor for forms</h4></td>
+    <td width="67%">A super intuitive <a href="https://botfront.io/docs/rasa/forms-slot-filling/">flow chart editor</a> for conversations that do not require machine learning
 </tr>
 <tr>
-    <td width="33%"><h4>Annotate incoming data</h4></td>
-    <td width="67%">Botfront is always connected to your agent and conversation data keeps flowing in. You can annotate this data and even use it as an evaluation set and check how this new data improves your model.</td>
+    <td width="33%"><h4>Automated tests</h4></td>
+    <td width="67%">Create <a href="https://botfront.io/docs/rasa/testing/">automated tests in one click</a> from conversations, get detailed reports and deploy in confidence.
+</tr>
+<tr>
+    <td width="33%"><h4>Git integration</h4></td>
+    <td width="67%">Version your work on a repository with the new <a href="https://botfront.io//docs/rasa/git-integration">Git integration</a>.
+</tr>
+<tr>
+    <td width="33%"><h4>Train & evaluate NLU models</h4></td>
+    <td width="67%">Botfront comes with a complete NLU toolbox. You can tag vast amounts of data efficiently, train and evaluate models. <a href="https://botfront.io/docs/rasa/nlu/evaluation/#evaluation-methods">Several evaluation methods</a> are available depending on the development stage of your model, and you can annotate incoming NLU data</td>
 </tr>
 <tr>
     <td width="33%"><h4>Rasa integration</h4></td>
     <td width="67%">Botfront exposes all Rasa features and concepts and and makes them accessible at a higher level for faster development. You can <a href="https://botfront.io/docs/import-export/">export a Botfront project and use it with Rasa</a> at any time.</td>
 </tr>
-
+<tr>
+    <td width="33%"><h4>Enterprise ready</h4></td>
+    <td width="67%">Scale your conversational AI practice with enterprise grade projects and user management, RBAC and flexible deployment options.
+</tr>
 </table>
 <br/>
 <h2 name="quick-start" align="center">Quick Start</h2>
@@ -98,7 +110,7 @@ Then just run `botfront`to get started.
 
 The [official documentation](https://botfront.io/docs/getting-started/setup) of Botfront is hosted on [botfront.io](https://botfront.io/docs/getting-started/setup). It is automatically built and updated on every new release. Once you've installed the cli you can also use `botfront docs` to open it.
 
-
+**We welcome contributions!** It can be as easy as clicking on the "Edit page on Github" link at the bottom of every documentation pages.
 
 <h2 name="development" align="center">Development</h2>
 
@@ -207,8 +219,16 @@ docs(conversation builder): update slots manager screenshot.
 <br/>
 <h2 align="center">License</h2>
 
-Botfront is [AGPLv3](https://github.com/botfront/botfront/blob/master/LICENSE) licensed. You can read the licence [here](https://github.com/botfront/botfront/blob/master/LICENSE).
+Copyright (C) 2021 Dialogue Technologies Inc.
 
-<sub>
-Copyright (C) 2019 9300-2038 Quebec Inc. All rights reserved.
-</sub>
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.(C) 2021 Dialogue Technologies Inc. All rights reserved.

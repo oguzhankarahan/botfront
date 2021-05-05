@@ -10,11 +10,18 @@ import { GET_CONVERSATION } from './queries';
 import { MARK_READ } from './mutations';
 import ConversationJsonViewer from './ConversationJsonViewer';
 import ConversationDialogueViewer from './ConversationDialogueViewer';
+import Can from '../roles/Can';
 
 function ConversationViewer (props) {
     const [active, setActive] = useState('Text');
+    const [savedTest, setSavedTest] = useState(false);
+
+    const timeout = useRef(null);
+
+    useEffect(() => (() => clearTimeout(timeout.current)), []);
+
     const {
-        tracker, ready, onDelete, removeReadMark, optimisticlyRemoved,
+        tracker, ready, onDelete, removeReadMark, optimisticlyRemoved, onCreateTestCase,
     } = props;
 
     const [markRead, { data }] = useMutation(MARK_READ);
@@ -31,6 +38,15 @@ function ConversationViewer (props) {
     function handleItemDelete() {
         onDelete(tracker._id);
     }
+
+    const handleSaveAsTestCase = () => {
+        setSavedTest(false);
+        onCreateTestCase(tracker._id, (err) => {
+            if (!err) {
+                timeout.current = setTimeout(() => setSavedTest(true), 50);
+            }
+        });
+    };
 
     function renderSegment() {
         const style = {
@@ -96,7 +112,7 @@ function ConversationViewer (props) {
 
     
     return (
-        <div>
+        <div className='conversation-wrapper'>
             <Menu compact attached='top'>
                 {/* <Menu.Item name='new' disabled={!ready} active={ready && tracker.status === 'new'} onClick={this.handleItemStatus}>
                         <Icon name='mail' />
@@ -104,9 +120,21 @@ function ConversationViewer (props) {
                     <Menu.Item name='flagged' disabled={!ready} active={ready && tracker.status === 'flagged'} onClick={this.handleItemStatus}>
                         <Icon name='flag' />
                     </Menu.Item> */}
-                <Menu.Item name='archived' disabled={!ready} active={ready && tracker.status === 'archived'} onClick={handleItemDelete}>
-                    <Icon name='trash' data-cy='conversation-delete' />
-                </Menu.Item>
+                <Can I='incoming:w'>
+                    <>
+                        <Menu.Item name='archived' disabled={!ready} active={ready && tracker.status === 'archived'} onClick={handleItemDelete}>
+                            <Icon name='trash' data-cy='conversation-delete' />
+                        </Menu.Item>
+                        <Menu.Item name='archived' disabled={!ready} active={ready && tracker.status === 'archived'} onClick={handleSaveAsTestCase}>
+                            <Icon
+                                name='clipboard check'
+                                data-cy='save-as-test'
+                                color={savedTest ? 'green' : 'black'}
+                                className={savedTest ? 'saved-test' : ''}
+                            />
+                        </Menu.Item>
+                    </>
+                </Can>
                 <Menu.Menu position='right'>
                     <Menu.Item name='Text' disabled={!ready} active={ready && active === 'Text'} onClick={handleItemClick}>
                         <Icon name='comments' />
@@ -136,11 +164,12 @@ ConversationViewer.propTypes = {
     ready: PropTypes.bool.isRequired,
     removeReadMark: PropTypes.func.isRequired,
     optimisticlyRemoved: PropTypes.instanceOf(Set),
+    onCreateTestCase: PropTypes.func.isRequired,
 };
 
 const ConversationViewerContainer = (props) => {
     const {
-        conversationId, projectId, onDelete, removeReadMark, optimisticlyRemoved,
+        conversationId, projectId, onDelete, removeReadMark, optimisticlyRemoved, onCreateTestCase,
     } = props;
 
     const tracker = useRef(null);
@@ -164,6 +193,7 @@ const ConversationViewerContainer = (props) => {
         tracker: tracker.current,
         removeReadMark,
         optimisticlyRemoved,
+        onCreateTestCase,
     };
 
     return (<ConversationViewer {...componentProps} />);

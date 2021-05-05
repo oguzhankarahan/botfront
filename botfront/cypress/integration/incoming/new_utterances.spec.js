@@ -1,11 +1,11 @@
 /* global cy Cypress:true */
-
 describe('incoming page', function() {
     beforeEach(function() {
+        cy.deleteProject('bf');
         cy.createProject('bf', 'My Project', 'en').then(() => {
             cy.login();
             cy.waitForResolve(Cypress.env('RASA_URL'));
-            cy.importNluData('bf', 'nlu_sample_en.json', 'en');
+            cy.import('bf', 'nlu_sample_en.json', 'en');
             cy.train();
             cy.addNewUtterances(['apple', 'kiwi', 'banana']);
         });
@@ -13,12 +13,11 @@ describe('incoming page', function() {
 
     afterEach(function() {
         cy.logout();
-        cy.deleteProject('bf');
     });
 
     it('should assign populated data to the right language', function() {
-        cy.addNewProjectLanguage('French');
-        cy.importNluData('bf', 'nlu_sample_fr.json', 'fr');
+        cy.createNLUModelProgramatically('bf', '', 'fr');
+        cy.import('bf', 'nlu_sample_fr.json', 'fr');
         cy.train();
 
         cy.visit('/project/bf/incoming');
@@ -64,11 +63,67 @@ describe('incoming page', function() {
         cy.selectOrUnselectIncomingRow('banana');
         cy.dataCy('activity-command-bar').should('exist').should('contain.text', '2 selected');
         cy.changeIntentOfSelectedUtterances('fruit');
-        cy.toggleValidationOfSelectedUtterances();
         cy.get('.virtual-table').findCy('invalidate-utterance').should('have.length', 2);
         cy.selectOrUnselectIncomingRow('banana');
         cy.selectOrUnselectIncomingRow('kiwi');
         cy.deleteSelectedUtterances();
         cy.get('.row').should('have.length', 1).should('contain.text', 'banana');
+    });
+
+    it('should be possible to view the conversation from the utterance', function() {
+        cy.addCustomConversation('bf', 'test', { events: [{ type: 'user', text: 'test conv link' }] });
+        cy.visit('/project/bf/incoming');
+        cy.get('.utterance-viewer').first().should('have.text', 'test conv link')
+            .trigger('mouseover');
+        cy.dataCy('conversation-viewer').first().click({ force: true });
+        cy.dataCy('conversation-side-panel').should('exist');
+        cy.dataCy('conversation-side-panel').should('contains.text', 'test conv link');
+    });
+
+    it('should move an utterance to OOS, and then to training data', function() {
+        cy.get('.row:contains(banana)')
+            .findCy('intent-label')
+            .find('.action-on-label')
+            .click({ force: true });
+        cy.get('.null[data-cy=intent-label]').should('exist');
+        cy.get('.row:contains(banana)').click({ force: true });
+        cy.get('body').type('o');
+
+        cy.visit('/project/bf/nlu/models');
+        cy.get('a.item').contains('Out Of Scope').click();
+        cy.get('.row:contains(banana)').should('exist');
+        cy.dataCy('icon-plus').should('not.exist');
+        cy.wait(300);
+        cy.dataCy('intent-label').find('.content-on-label').click({ force: true });
+        cy.get('.popup').should('exist');
+        cy.get('.row:contains(greet)').click();
+        cy.wait(300);
+        cy.get('.row:contains(banana)').trigger('mouseover');
+        cy.dataCy('icon-plus').should('exist').click({ force: true });
+        
+        cy.get('a.item').contains('Examples').click();
+        cy.get('.row').contains('banana').should('exist');
+    });
+    
+    it('should batch validate', function() {
+        cy.selectOrUnselectIncomingRow('apple');
+        cy.dataCy('activity-command-bar').should('not.exist');
+        cy.selectOrUnselectIncomingRow('banana');
+        cy.dataCy('activity-command-bar').should('exist').should('contain.text', '2 selected');
+        cy.toggleValidationOfSelectedUtterances();
+        cy.get('.virtual-table').findCy('invalidate-utterance').should('have.length', 2);
+    });
+
+    it('should automatically validate the utterance if there is an intent', function() {
+        cy.selectOrUnselectIncomingRow('apple');
+        cy.selectOrUnselectIncomingRow('banana');
+        cy.changeIntentOfSelectedUtterances('fruit');
+        cy.get('.virtual-table').findCy('invalidate-utterance').should('have.length', 2);
+    });
+
+    it('should not automatically validate the utterance  when there is no intent', function() {
+        cy.selectOrUnselectIncomingRow('apple');
+        cy.dataCy('remove-intent').first().click({ force: true });
+        cy.get('.virtual-table').findCy('invalidate-utterance').should('have.length', 0);
     });
 });

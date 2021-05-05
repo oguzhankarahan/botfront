@@ -27,7 +27,6 @@ function Entity({
     const [newValue, setNewValue] = useState(value);
     const [toBeDeleted, setToBeDeleted] = useState(false);
     const [createdAt] = useState(new Event('click').timeStamp);
-
     useEffect(() => {
         if (openInitially) setPopupOpen(true);
     }, []);
@@ -47,7 +46,7 @@ function Entity({
     };
 
     const handleClose = () => {
-        if (!toBeDeleted) commitChanges();
+        if (!toBeDeleted && allowEditing) commitChanges();
         setShowDeleteConfirmation(false);
         if (onClose) onClose();
     };
@@ -61,7 +60,7 @@ function Entity({
     const renderAdvancedEditing = () => (
         <>
             {!disallowAdvancedEditing && newValue.entity && (
-                <EntityValueEditor entity={newValue} onChange={handleChange} />
+                <EntityValueEditor entity={newValue} onChange={handleChange} disabled={!allowEditing} />
             )}
         </>
     );
@@ -83,12 +82,13 @@ function Entity({
                             ? () => setShowDeleteConfirmation(true)
                             : null
                     }
+                    disabled={!allowEditing}
                 />
             </Grid.Row>
             <Grid.Row centered>
                 {showDeleteConfirmation
                     ? (
-                        <Button negative size='mini' onClick={() => setToBeDeleted(true)}>
+                        <Button negative size='mini' onClick={() => setToBeDeleted(true)} data-cy='confirm-entity-deletion'>
                         Confirm deletion
                         </Button>
                     )
@@ -102,7 +102,7 @@ function Entity({
         if (value.text !== value.value) {
             return (
                 <span>
-                    {value.text} <span className='value-synonym'>&#8810;{value.value}&#8811;</span>
+                    {value.text} <span className='value-synonym'>&#8810;{value.value instanceof String ? value.value : JSON.stringify(value.value)}&#8811;</span>
                 </span>
             );
         }
@@ -118,7 +118,7 @@ function Entity({
     };
     return (
         <>
-            {popupOpen && allowEditing && (
+            {popupOpen && (
                 <Popup
                     open
                     basic
@@ -133,6 +133,7 @@ function Entity({
                         setPopupOpen(false);
                     }}
                     className='entity-popup'
+                    data-cy='entity-popup'
                 />
             )}
             {customTrigger ? (
@@ -144,11 +145,11 @@ function Entity({
                     data-cy='entity-label'
                     className={`entity-container ${colorToRender}`}
                 >
-                    <span className='float'>
+                    <span className='float entity-name' data-cy='entity-name'>
                         {(value.group || value.role || value.text !== value.value) && <>&#9733;</>}
                         {value.entity}
                     </span>
-                    <div ref={labelRef} {...onClickProp}>
+                    <div ref={labelRef} {...onClickProp} data-cy='entity-text'>
                         {renderText()}
                     </div>
                 </div>
@@ -180,5 +181,6 @@ Entity.defaultProps = {
     openInitially: false,
     disallowAdvancedEditing: false,
 };
+
 
 export default Entity;

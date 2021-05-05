@@ -16,6 +16,7 @@ describe('Training', function() {
     });
     
     afterEach(function() {
+        cy.logout();
         cy.deleteProject('bf');
     });
     
@@ -23,29 +24,29 @@ describe('Training', function() {
         cy.train();
         cy.newChatSesh();
         cy.testChatInput('/chitchat.greet', 'utter_hi');
-        cy.importNluData('bf', 'nlu_sample_en.json', 'en');
+        cy.import('bf', 'nlu_sample_en.json', 'en');
         cy.train();
         cy.newChatSesh();
         cy.testChatInput('hi', 'utter_hi'); // nlg returns template name if not defined
     });
 
     it('Should train and serve a model containing stories + NLU in one language and adding a second language should work too', function() {
-        cy.importNluData('bf', 'nlu_sample_en.json', 'en');
+        cy.import('bf', 'nlu_sample_en.json', 'en');
         cy.train();
         cy.newChatSesh();
         cy.testChatInput('hi', 'utter_hi');
         cy.createNLUModelProgramatically('bf', '', 'fr'); // first don't import NLU data
         cy.train();
-        cy.importNluData('bf', 'nlu_sample_fr.json', 'fr'); // now import the data
+        cy.import('bf', 'nlu_sample_fr.json', 'fr'); // now import the data
         cy.train();
         cy.newChatSesh('fr');
         cy.testChatInput('salut', 'utter_hi');
     });
 
     it('Should train and serve a model containing stories and NLU in 2 languages', function() {
-        cy.importNluData('bf', 'nlu_sample_en.json', 'en');
+        cy.import('bf', 'nlu_sample_en.json', 'en');
         cy.createNLUModelProgramatically('bf', '', 'fr');
-        cy.importNluData('bf', 'nlu_sample_fr.json', 'fr');
+        cy.import('bf', 'nlu_sample_fr.json', 'fr');
         cy.train();
         cy.newChatSesh();
         cy.testChatInput('hi', 'utter_hi');
@@ -64,8 +65,10 @@ describe('Training', function() {
         cy.toggleStoryGroupFocused();
         cy.get('.eye.icon.focused').should('have.length', 1);
         cy.train();
+        cy.wait(1000);
         cy.newChatSesh();
-        cy.testChatInput('/get_started', 'utter_hi');
+        cy.typeChatMessage('/get_started');
+        cy.get('.rw-message').should('have.length', 1); // no response
         cy.testChatInput('/chitchat.greet', 'utter_hi');
         cy.toggleStoryGroupFocused();
         cy.get('.eye.icon.focused').should('have.length', 0);
@@ -73,13 +76,15 @@ describe('Training', function() {
         cy.wait(500);
         cy.get('.eye.icon.focused').should('have.length', 1);
         cy.train();
+        cy.wait(1000);
         cy.newChatSesh();
+        cy.typeChatMessage('/chitchat.greet');
+        cy.get('.rw-message').should('have.length', 2); // no response
         cy.testChatInput('/get_started', 'utter_get_started');
-        cy.testChatInput('/chitchat.greet', 'utter_get_started');
     });
     
     it('Should train and serve a model containing branches and links', function() {
-        cy.importViaUi('branch_link_project.json', 'bf');
+        cy.import('bf', 'branch_link_project.yml');
         cy.train();
         cy.newChatSesh();
         // coffee path
@@ -97,12 +102,24 @@ describe('Training', function() {
         cy.visit('/chat/bf/');
         cy.get('body').contains('Sharing not enabled for project').should('exist');
         cy.train();
+        cy.visit('project/bf/dialogue');
         cy.dataCy('share-bot').trigger('mouseover');
         cy.dataCy('toggle-bot-sharing').should('exist').should('not.have.class', 'checked')
             .click()
             .should('have.class', 'checked');
         cy.visit('/chat/bf/');
         cy.get('body').contains('Sharing not enabled for project').should('not.exist');
-        cy.get('body').contains('utter_get_started').should('exist');
+        cy.get('body').contains('utter_get_started', { timeout: 10000 }).should('exist');
+        cy.dataCy('environment-dropdown').should('not.exist');
+
+        cy.visit('/project/bf/settings');
+        cy.dataCy('deployment-environments').should('exist');
+        cy.dataCy('deployment-environments').find('.ui.checkbox').last().click();
+        cy.dataCy('save-changes').click();
+        cy.visit('/chat/bf');
+        cy.dataCy('environment-dropdown').click();
+        cy.dataCy('environment-dropdown').find('div').contains('production').click();
+        cy.dataCy('environment-dropdown').click();
+        cy.dataCy('environment-dropdown').find('.active.item').should('have.text', 'production');
     });
 });

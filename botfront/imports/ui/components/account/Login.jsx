@@ -30,11 +30,14 @@ class LoginComponent extends React.Component {
 
     constructor(props) {
         super(props);
+       
         Meteor.call('users.checkEmpty', wrapMeteorCallback((err, res) => {
             if (res) {
                 browserHistory.push('/setup/welcome');
             }
         }));
+            
+       
         this.state = {
             loggingIn: false,
             loggedOut: !Meteor.userId,
@@ -55,7 +58,17 @@ class LoginComponent extends React.Component {
             wrapMeteorCallback((err) => {
                 this.setState({ loggingIn: false, reCaptcha: null });
                 if (this.reCaptchaRef) this.reCaptchaRef.reset();
-                if (!err) browserHistory.goBack();
+                if (!err) {
+                    const { location } = this.props;
+                    // this represents the previously visited page on our domain.
+                    if (location?.state?.nextPathname && location?.state?.nextPathname.indexOf('login') === -1) {
+                        // if it exists we want to go back to the page the user was trying to visit
+                        browserHistory.goBack();
+                    } else {
+                        // if not, we use the default route
+                        browserHistory.push('/');
+                    }
+                }
             }),
         );
     };
@@ -110,10 +123,12 @@ LoginComponent.propTypes = {
         path: PropTypes.string,
     }).isRequired,
     settings: PropTypes.object,
+    location: PropTypes.object,
 };
 
 LoginComponent.defaultProps = {
     settings: {},
+    location: {},
 };
 
 const LoginContainer = withTracker(() => {

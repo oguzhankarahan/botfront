@@ -15,7 +15,7 @@ const botResponseFields = gql`
         ...on QuickRepliesPayload { text, quick_replies { title, type, ...on WebUrlButton { url }, ...on PostbackButton { payload } } }
         ...on TextWithButtonsPayload { text, buttons { title, type, ...on WebUrlButton { url }, ...on PostbackButton { payload } } }
         ...on ImagePayload { text, image }
-        ...on CarouselPayload { template_type, elements { ...CarouselElementFields } }
+        ...on CarouselPayload { elements { ...CarouselElementFields } }
         ...on CustomPayload { customText: text, customImage: image, customButtons: buttons, customElements: elements, custom, customAttachment: attachment }
     }
 `;
@@ -31,8 +31,8 @@ export const GET_BOT_RESPONSES = gql`
 `;
 
 export const UPSERT_BOT_RESPONSE = gql`
-mutation upsertResponse($projectId: String!, $key: String!, $newKey: String, $language: String!, $newPayload: Any, $index: Int = -1, $newResponseType: String) {
-    upsertResponse(projectId: $projectId, key: $key, newKey: $newKey, language: $language, newPayload: $newPayload, index: $index, newResponseType: $newResponseType) {
+mutation upsertResponse($projectId: String!, $key: String!, $newKey: String, $language: String!, $newPayload: Any, $index: Int = -1, $logging: Boolean = true, $newResponseType: String) {
+    upsertResponse(projectId: $projectId, key: $key, newKey: $newKey, language: $language, newPayload: $newPayload, index: $index, logging: $logging, newResponseType: $newResponseType) {
         key
     }
 }`;

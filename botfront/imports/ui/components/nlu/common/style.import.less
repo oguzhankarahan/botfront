@@ -37,6 +37,40 @@
     }
 }
 
+.virtual-table.intent-dropdown {
+    .item.intent {
+        overflow: hidden;
+        margin-right: 14px;
+        margin-top: 4px;
+    }
+    .side-by-side {
+        min-height: 28px;
+        overflow: hidden;
+    }
+}
+.ui.dropdown.intent-multiselect {
+    .intent-dropdown-trigger{
+        width: 100%;
+    }
+    display: flex;
+    width: 100%;
+    padding: 0.25em;
+    padding-right: 0;
+    .placeholder-text {
+        line-height: 1.9em;
+        color: rgba(0,0,0,0.3);
+        margin: 0.25em;
+    }
+    .intent-multiselect-label {
+        margin: 0.15em;
+    }
+    .dropdown-icon {
+        position: absolute;
+        right: 0.5em;
+        top: calc(50% - 15px);
+        color: rgba(0,0,0,0.87);
+    }
+}
 .intent-label {
     user-select: none;
     display: inline-flex;
@@ -95,7 +129,7 @@
         color: #fff;
         content: 'Set intent for selected utterances';
     }
-    width: 300px;
+    width: 500px;
 }
 
 .ui.popup.intent-popup, 
@@ -169,10 +203,25 @@
     position: relative;
     .float {
         position: absolute;
-        width: 100px;
-        bottom: ~"calc(100% - 1px)";
+        max-width: 200px;
+        bottom: ~"calc(100% - 5px)";
         font-size: small;
         user-select: none;
+        border-radius: 4px;
+        padding: 0px 2px 1px 2px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+        z-index: 10;
+    }
+    .entity-name {
+        visibility: hidden;
+    }
+    &:hover {
+        .entity-name {
+            background-color: rgba(252, 252, 252, 0.863);
+            visibility: visible;
+        }
     }
 }
 
@@ -208,4 +257,8 @@
     span {
         word-break: break-word;
     }
+}
+
+.ui.purple.fluid.button.create-intent-button {
+    height: 3.4em;
 }

@@ -3,7 +3,12 @@ import { Meteor } from 'meteor/meteor';
 import { expect } from 'chai';
 import { getNluDataAndConfig } from './instances.methods';
 import { Projects } from '../project/project.collection';
+import { createTestUser } from '../testUtils';
+// eslint-disable-next-line import/named
+import { setUpRoles } from '../roles/roles';
 import { NLUModels } from '../nlu_model/nlu_model.collection';
+import { Instances } from './instances.collection';
+import { createAxiosForRasa } from '../../lib/utils';
 import { insertExamples } from '../graphql/examples/mongo/examples';
 import Examples from '../graphql/examples/examples.model';
 
@@ -12,7 +17,8 @@ const nluModel = {
     projectId: 'test',
     name: 'chitchat-en',
     language: 'en',
-    config: 'pipeline:\n  - name: WhitespaceTokenizer\n  - name: LexicalSyntacticFeaturizer\n  - name: CountVectorsFeaturizer\n  - name: CountVectorsFeaturizer\n    analyzer: char_wb\n    min_ngram: 1\n    max_ngram: 4\n  - name: DIETClassifier\n    epochs: 100\n  - name: rasa_addons.nlu.components.gazette.Gazette\n  - name: >-\n      rasa_addons.nlu.components.intent_ranking_canonical_example_injector.IntentRankingCanonicalExampleInjector\n  - name: EntitySynonymMapper',
+    config:
+        'pipeline:\n  - name: WhitespaceTokenizer\n  - name: LexicalSyntacticFeaturizer\n  - name: CountVectorsFeaturizer\n  - name: CountVectorsFeaturizer\n    analyzer: char_wb\n    min_ngram: 1\n    max_ngram: 4\n  - name: DIETClassifier\n    epochs: 100\n  - name: rasa_addons.nlu.components.gazette.Gazette\n  - name: >-\n      rasa_addons.nlu.components.intent_ranking_canonical_example_injector.IntentRankingCanonicalExampleInjector\n  - name: EntitySynonymMapper',
     evaluations: [],
     intents: [],
     chitchat_intents: [],
@@ -49,10 +55,7 @@ const nluModel = {
         entity_synonyms: [
             {
                 value: 'NYC',
-                synonyms: [
-                    'New-York',
-                    'the big apple',
-                ],
+                synonyms: ['New-York', 'the big apple'],
                 _id: 'd390acad-18d6-4705-99b0-77b764525536',
             },
         ],
@@ -64,13 +67,26 @@ const nluModel = {
     },
 };
 
-const allExamples = [{
-    text: 'tt', intent: 'chitchat.tell_me_a_joke', metadata: { canonical: true, language: 'en' }, entities: [],
-}, {
-    text: 'that\'s all goodbye', intent: 'chitchat.bye', metadata: { canonical: true, language: 'en' }, entities: [],
-}, {
-    text: 'hello good evening', intent: 'chitchat.greet', metadata: { canonical: true, language: 'en' }, entities: [],
-}];
+const allExamples = [
+    {
+        text: 'that\'s all goodbye',
+        intent: 'chitchat.bye',
+        metadata: { canonical: true, language: 'en' },
+        entities: [],
+    },
+    {
+        text: 'hello good evening',
+        intent: 'chitchat.greet',
+        metadata: { canonical: true, language: 'en' },
+        entities: [],
+    },
+    {
+        text: 'tt',
+        intent: 'chitchat.tell_me_a_joke',
+        metadata: { canonical: true, language: 'en' },
+        entities: [],
+    },
+];
 
 const testProject = {
     _id: 'test',
@@ -105,6 +121,8 @@ if (Meteor.isTest) {
         this.timeout(15000);
         if (Meteor.isServer) {
             before(async (done) => {
+                setUpRoles();
+                await createTestUser();
                 await Projects.insert(testProject);
                 await NLUModels.insert(nluModel);
                 await insertExamples({
@@ -143,6 +161,27 @@ if (Meteor.isTest) {
                     rasa_nlu_data: { common_examples },
                 } = await getNluDataAndConfig('test', 'en', ['chitchat.greet']);
                 expect(common_examples).to.deep.equal(selectedExampleAndDummy);
+            });
+        }
+    });
+
+   
+    describe('createAxiosForRasa', function () {
+        this.timeout(15000);
+        if (Meteor.isServer) {
+            before(async (done) => {
+                await Instances.insert({ projectId: 'bf', host: 'http://test.host', token: 'abc' });
+                done();
+            });
+            after(async (done) => {
+                await Instances.remove({ projectId: 'bf' });
+                done();
+            });
+    
+            it('should create an axios client with the right config to call rasa', async function () {
+                const client = await createAxiosForRasa('bf');
+                expect(client.defaults.baseURL).to.equal('http://test.host');
+                expect(client.defaults.params.token).to.equal('abc');
             });
         }
     });

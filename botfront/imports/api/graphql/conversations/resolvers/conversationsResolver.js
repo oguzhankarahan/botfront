@@ -4,11 +4,12 @@ import {
     getConversation,
     updateConversationStatus,
     deleteConversation,
+    getIntents,
 } from '../mongo/conversations';
+import { checkIfCan } from '../../../../lib/scopes';
+import { auditLog } from '../../../../../server/logger';
 import Conversations from '../conversations.model.js';
-import {
-    upsertTrackerStore,
-} from '../../trackerStore/mongo/trackerStore';
+import { upsertTrackerStore } from '../../trackerStore/mongo/trackerStore';
 
 const getLatestTimestamp = async (projectId, environment) => {
     const query = !environment || environment === 'development'
@@ -24,57 +25,97 @@ const getLatestTimestamp = async (projectId, environment) => {
         .sort('-tracker.latest_event_time')
         .lean()
         .exec();
-    return latestAddition
-        ? latestAddition.tracker.latest_event_time : 0;
+    return latestAddition ? latestAddition.tracker.latest_event_time : 0;
 };
 
 export default {
     Query: {
-        async conversationsPage(_, args, __) {
-            return getConversations(args.projectId, args.page, args.pageSize, args.status, args.sort);
+        async conversationsPage(_, args, context) {
+            checkIfCan('incoming:r', args.projectId, context.user._id);
+            return getConversations({ ...args });
         },
-        async conversation(_, args, __) {
-            return getConversation(args.projectId, args.id);
+        async conversation(_, args, context) {
+            checkIfCan('incoming:r', args.projectId, context.user._id);
+            return getConversation(args.projectId, args.id, args.senderId);
+        },
+        async intentsInConversations(_, args, context) {
+            checkIfCan('incoming:r', args.projectId, context.user._id);
+            return getIntents(args.projectId);
         },
         latestImportedEvent: async (_, args, __) => getLatestTimestamp(args.projectId, args.environment),
     },
     Mutation: {
-        async markAsRead(_, args, __) {
+        async markAsRead(_, args, context) {
+            checkIfCan('incoming:r', args.projectId, context.user._id);
             const response = await updateConversationStatus(args.id, 'read');
             return { success: response.ok === 1 };
         },
-        async updateStatus(_, args, __) {
+        async updateStatus(_, args, context) {
+            checkIfCan('incoming:w', args.projectId, context.user._id);
+            const conversationBefore = await getConversation(args.projectId, args.id);
             const response = await updateConversationStatus(args.id, args.status);
+            const conversationAfter = await getConversation(args.projectId, args.id);
+            auditLog('Updated conversation status', {
+                user: context.user,
+                type: 'updated',
+                projectId: args.projectId,
+                operation: 'conversation-updated',
+                resId: args.id,
+                after: { conversation: conversationAfter },
+                before: { conversation: conversationBefore },
+                resType: 'conversation',
+            });
             return { success: response.ok === 1 };
         },
-        async delete(_, args, __) {
+        async delete(_, args, context) {
+            checkIfCan('incoming:w', args.projectId, context.user._id);
+            const conversationBefore = await getConversation(args.projectId, args.id);
             const response = await deleteConversation(args.id);
+            auditLog('Deleted conversation ', {
+                user: context.user,
+                type: 'deleted',
+                operation: 'conversation-deleted',
+                projectId: args.projectId,
+                resId: args.id,
+                before: { conversation: conversationBefore },
+                resType: 'conversation',
+            });
             return { success: response.ok === 1 };
         },
         importConversations: async (_, args, __) => {
             const {
-                conversations, projectId, environment, importConversationsOnly,
+                conversations,
+                projectId,
+                environment,
+                importConversationsOnly,
             } = args;
             const latestTimestamp = await getLatestTimestamp(projectId, environment);
-            const results = await Promise.all(conversations
-                .filter(c => c.tracker.latest_event_time >= latestTimestamp)
-                .map(c => upsertTrackerStore({
-                    senderId: c.tracker.sender_id || c._id,
-                    projectId,
-                    env: environment,
-                    tracker: c.tracker,
-                    overwriteEvents: true,
-                    importConversationsOnly,
-                })));
+            const results = await Promise.all(
+                conversations
+                    .filter(c => c.tracker.latest_event_time >= latestTimestamp)
+                    .map(c => upsertTrackerStore({
+                        senderId: c.tracker.sender_id || c._id,
+                        projectId,
+                        env: environment,
+                        tracker: c.tracker,
+                        overwriteEvents: true,
+                        importConversationsOnly,
+                    })),
+            );
             const notInserted = results.filter(({ status }) => status !== 'inserted');
-            const failed = notInserted.filter(({ status }) => status === 'failed')
+            const failed = notInserted
+                .filter(({ status }) => status === 'failed')
                 .map(({ _id }) => _id);
             const nTotal = conversations.length;
             const nPushed = results.length;
             const nInserted = nPushed - notInserted.length;
             const nUpdated = notInserted.length - failed.length;
             return {
-                nTotal, nPushed, nInserted, nUpdated, failed,
+                nTotal,
+                nPushed,
+                nInserted,
+                nUpdated,
+                failed,
             };
         },
     },

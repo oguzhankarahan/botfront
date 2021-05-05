@@ -1,5 +1,6 @@
 @import (css) url('https://fonts.googleapis.com/css?family=Be+Vietnam:400,500,700|Hind:600|Raleway:500');
 @import 'variables.import.less';
+@import 'datepicker.less';
 @import '../imports/ui/layouts/project.import.less';
 @import '../imports/ui/layouts/setup.import.less';
 @import '../imports/ui/components/admin/settings.import.less';
@@ -20,20 +21,23 @@
 @import '../imports/ui/components/stories/common/QuickReply.import.less';
 @import '../imports/ui/components/stories/common/Images.import.less';
 @import '../imports/ui/components/settings/style.import.less';
+@import '../imports/ui/components/analytics/Analytics.import.less';
+@import '../imports/ui/components/charts/style.import.less';
 @import '../imports/ui/components/templates/common/style.import.less';
+@import '../imports/ui/components/templates/style.import.less';
+@import '../imports/ui/components/stories/rules/style.import.less';
 @import '../imports/ui/components/stories/search/style.import.less';
 @import '../imports/ui/components/stories/common/nlu_editor/style.import.less';
 @import '../imports/ui/components/form_fields/style.import.less';
+@import '../imports/ui/components/forms/style.import.less';
+@import '../imports/ui/components/forms/graph/style.import.less';
+
 
 @sidebar-bg: rgb(45, 47, 74);
 @sidebar-size: 190px;
 @small-sidebar-size: 46px;
 @sidebar-offset:~"calc(@{sidebar-size} - @{small-sidebar-size})";
 @top-menu-height: 49px;
-
-:global {
-    @import 'react-select/dist/react-select.css';
-}
 
 @font-face {
     font-family: 'Icons';
@@ -77,6 +81,10 @@
     font-family: monospace;
 }
 
+.break-word {
+    word-break: break-word;
+}
+
 .cursor {
     &.pointer { cursor: pointer; * { cursor: pointer; } }
     &.text { cursor: text; }
@@ -111,7 +119,7 @@ html {
 
 .chat-demo-container {
     text-align: center;
-    background-color: #f4f4f5;
+    background-color: @botfront-grey-bg;
     height: 100%;
     .rw-conversation-container {
         box-shadow: none;
@@ -140,7 +148,7 @@ body {
 }
 
 .Pane.vertical.Pane1 {
-    background-color: #f4f4f5;
+    background-color: @botfront-grey-bg;
     & > .storygroup-browser {
         background-color:#fff;
     }
@@ -181,6 +189,13 @@ i.ui.icon {
 #render-target {
     height: 100%;
     overflow: hidden;
+    > div {
+        overflow: auto;
+    }
+}
+
+div[role="button"] {
+    outline: none;
 }
 
 div[role="button"] {
@@ -333,6 +348,11 @@ p.overflow {
     background: #fff none !important;
 }
 
+.read-only{
+    pointer-events: none;
+    cursor: not-allowed !important;
+}
+
 .s-alert-box {
     z-index: 1001 !important; // force alert box to appear over semantic ui modals
 }
@@ -342,4 +362,22 @@ p.overflow {
         text-decoration: underline;
         text-decoration-thickness: 1.5px;
     }
+}
+
+@keyframes bfbounce {
+    0% {
+      transform: scale(1);
+    }
+  
+    50% {
+      transform: scale(1.3);
+    }
+
+    100% {
+      transform: scale(1);
+    }
+  }
+
+.s-alert-box a {
+    opacity: 1 !important;
 }
